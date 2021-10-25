@@ -1,4 +1,6 @@
-### Hi there 👋
+<img src="https://github.com/NiqDS/NiqDS/blob/main/Black%20Flatlay%20Photo%20Motivational%20Finance%20Quote%20Facebook%20Cover.png" alt="banner">
+
+### Hello there! 👋
 
 ### My name is Nick and I am slowly but surely learning the ropes and making my first steps in the new career path I have chosen.
 
@@ -7,10 +9,6 @@
 ### 👯 If any of you learners out there are looking for a partner in crime, I’m looking to collaborate on any interesting real life data projects.
 
 ### [![Anurag's GitHub stats](https://github-readme-stats.vercel.app/api?username=NiqDS)](https://github.com/anuraghazra/github-readme-stats)
-
-<img src="https://github.com/NiqDS/NiqDS/blob/main/Black%20Flatlay%20Photo%20Motivational%20Finance%20Quote%20Facebook%20Cover.png" alt="banner">
-
-
 
 
 
