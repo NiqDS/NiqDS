@@ -2,7 +2,7 @@
 
 ### My name is Nick and I am slowly but surely learning the ropes and making my first steps in the new career path I have chosen.
 
-### 🌱 I’m currently learning python and its many real world applications
+### 🌱 I’m currently learning Kafka and Airflow within the work environment as well as Python and its many real world applications
 
 ### 👯 If any of you learners out there are looking for a partner in crime, I’m looking to collaborate on any interesting real life data projects.
 
