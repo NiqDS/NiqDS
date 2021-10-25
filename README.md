@@ -8,6 +8,11 @@
 
 ### [![Anurag's GitHub stats](https://github-readme-stats.vercel.app/api?username=NiqDS)](https://github.com/anuraghazra/github-readme-stats)
 
+<img src="https://github.com/NiqDS/NiqDS/blob/main/Black%20Flatlay%20Photo%20Motivational%20Finance%20Quote%20Facebook%20Cover.png" alt="banner">
+
+
+
+
 
 <!--
 **NiqDS/NiqDS** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
