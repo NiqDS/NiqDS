@@ -1,6 +1,6 @@
 ### Hi there 👋
 
-### My name is Nick and I am? slowly but surely learning the ropes and making my first steps in the new career path I have chosen.
+### My name is Nick and I am slowly but surely learning the ropes and making my first steps in the new career path I have chosen.
 
 ### 🌱 I’m currently learning python and its many real world applications
 
