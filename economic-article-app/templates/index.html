@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Economic Intelligence</title>
+  <style>
+    :root {
+      --bg: #0e0f13;
+      --card: #16181f;
+      --border: #2a2c35;
+      --accent: #e8b84b;
+      --body: #c8c5be;
+      --heading: #f5f2ea;
+      --error: #e87a4b;
+      --muted: #8a8880;
+      --ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --display: Georgia, "Times New Roman", serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--body);
+      font-family: var(--ui);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 48px 20px 80px;
+    }
+
+    /* Header */
+    header { margin-bottom: 36px; }
+
+    .badge {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    h1 {
+      font-family: var(--display);
+      font-size: 34px;
+      line-height: 1.15;
+      color: var(--heading);
+      margin: 12px 0 6px;
+      font-weight: 600;
+    }
+
+    .subtitle { color: var(--muted); font-size: 15px; margin: 0; }
+
+    /* Cards */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    /* Toggle */
+    .toggle {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px;
+      margin-bottom: 20px;
+      background: var(--bg);
+    }
+
+    .toggle button {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--ui);
+      font-size: 14px;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .toggle button.active {
+      background: var(--card);
+      color: var(--heading);
+      box-shadow: inset 0 0 0 1px var(--border);
+    }
+
+    /* Theme pills */
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+
+    .pill {
+      font-size: 12.5px;
+      color: var(--body);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px 12px;
+    }
+
+    .pill.more { color: var(--muted); }
+
+    .hint { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+
+    /* Custom input */
+    input[type="text"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--heading);
+      font-family: var(--ui);
+      font-size: 15px;
+      padding: 12px 14px;
+      outline: none;
+    }
+
+    input[type="text"]:focus { border-color: var(--accent); }
+    input[type="text"]::placeholder { color: var(--muted); }
+
+    /* Buttons */
+    .btn {
+      appearance: none;
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #1a1607;
+      font-family: var(--ui);
+      font-size: 15px;
+      font-weight: 600;
+      padding: 12px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: filter 0.15s;
+    }
+
+    .btn:hover { filter: brightness(1.08); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn.secondary {
+      background: transparent;
+      color: var(--body);
+      border-color: var(--border);
+    }
+
+    .btn.secondary:hover { border-color: var(--accent); color: var(--heading); }
+
+    .actions { display: flex; gap: 10px; margin-top: 20px; }
+
+    .generate-row { margin-top: 24px; }
+
+    /* Spinner */
+    .loading { text-align: center; padding: 8px 0; }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      margin: 0 auto 16px;
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading p { color: var(--muted); font-size: 14px; margin: 0; }
+
+    /* Article */
+    .theme-badge {
+      display: inline-block;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 12px;
+      margin-bottom: 18px;
+    }
+
+    .article { font-family: var(--display); font-size: 17px; }
+    .article h1 { font-size: 28px; margin: 0 0 16px; }
+    .article h2 { font-family: var(--display); font-size: 21px; color: var(--heading); margin: 28px 0 10px; font-weight: 600; }
+    .article h3 { font-family: var(--display); font-size: 18px; color: var(--heading); margin: 22px 0 8px; }
+    .article p { margin: 0 0 16px; }
+    .article ul, .article ol { margin: 0 0 16px; padding-left: 22px; }
+    .article li { margin-bottom: 6px; }
+    .article strong { color: var(--heading); }
+    .article em { color: var(--body); }
+    .article a { color: var(--accent); }
+    .article blockquote {
+      border-left: 3px solid var(--accent);
+      margin: 0 0 16px;
+      padding-left: 16px;
+      color: var(--muted);
+    }
+
+    /* Error */
+    .error-card { border-color: var(--error); }
+    .error-card .msg { color: var(--error); margin: 0 0 16px; }
+
+    .copied-note { color: var(--accent); font-size: 13px; margin-left: 4px; align-self: center; }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="badge">Economic Intelligence</div>
+      <h1>Article Generator</h1>
+      <p class="subtitle">AI-written economic analysis, newsletter-ready.</p>
+    </header>
+
+    <!-- IDLE -->
+    <section id="idle" class="card">
+      <div class="toggle" role="tablist">
+        <button id="tab-random" class="active" onclick="setMode('random')">Random theme</button>
+        <button id="tab-custom" onclick="setMode('custom')">Custom theme</button>
+      </div>
+
+      <div id="random-panel">
+        <div class="pills">
+          {% for theme in themes[:5] %}
+            <span class="pill">{{ theme }}</span>
+          {% endfor %}
+          {% if themes|length > 5 %}
+            <span class="pill more">+{{ themes|length - 5 }} more</span>
+          {% endif %}
+        </div>
+        <p class="hint">A theme is chosen at random when you generate.</p>
+      </div>
+
+      <div id="custom-panel" class="hidden">
+        <input id="custom-input" type="text" placeholder="e.g. Quantitative tightening and bond markets" />
+      </div>
+
+      <div class="generate-row">
+        <button id="generate-btn" class="btn" onclick="generate()">Generate Article</button>
+      </div>
+    </section>
+
+    <!-- LOADING -->
+    <section id="loading" class="card loading hidden">
+      <div class="spinner"></div>
+      <p id="loading-text">Writing article…</p>
+    </section>
+
+    <!-- DONE -->
+    <section id="done" class="card hidden">
+      <span class="theme-badge" id="theme-badge"></span>
+      <div class="article" id="article-body"></div>
+      <div class="actions">
+        <button class="btn secondary" onclick="copyMarkdown()">Copy</button>
+        <button class="btn" onclick="reset()">New Article</button>
+        <span id="copied-note" class="copied-note hidden">Copied to clipboard</span>
+      </div>
+    </section>
+
+    <!-- ERROR -->
+    <section id="error" class="card error-card hidden">
+      <p class="msg" id="error-msg"></p>
+      <button class="btn" onclick="reset()">Try Again</button>
+    </section>
+  </div>
+
+  <script>
+    let mode = "random";
+    let rawMarkdown = "";
+
+    const $ = (id) => document.getElementById(id);
+
+    function show(stateId) {
+      ["idle", "loading", "done", "error"].forEach((s) => {
+        $(s).classList.toggle("hidden", s !== stateId);
+      });
+    }
+
+    function setMode(next) {
+      mode = next;
+      $("tab-random").classList.toggle("active", next === "random");
+      $("tab-custom").classList.toggle("active", next === "custom");
+      $("random-panel").classList.toggle("hidden", next !== "random");
+      $("custom-panel").classList.toggle("hidden", next !== "custom");
+    }
+
+    async function generate() {
+      const customTheme = $("custom-input").value.trim();
+      const theme = mode === "custom" ? customTheme : null;
+
+      if (mode === "custom" && !customTheme) {
+        $("custom-input").focus();
+        return;
+      }
+
+      $("loading-text").textContent = theme
+        ? `Writing article on ${theme}…`
+        : "Writing article on a random theme…";
+      show("loading");
+
+      try {
+        const res = await fetch("/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ theme }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Something went wrong.");
+        }
+
+        rawMarkdown = data.article;
+        $("theme-badge").textContent = data.theme;
+        $("article-body").innerHTML = data.article_html;
+        $("copied-note").classList.add("hidden");
+        show("done");
+      } catch (err) {
+        $("error-msg").textContent = err.message;
+        show("error");
+      }
+    }
+
+    async function copyMarkdown() {
+      try {
+        await navigator.clipboard.writeText(rawMarkdown);
+        $("copied-note").classList.remove("hidden");
+        setTimeout(() => $("copied-note").classList.add("hidden"), 2000);
+      } catch (err) {
+        $("copied-note").textContent = "Copy failed";
+        $("copied-note").classList.remove("hidden");
+      }
+    }
+
+    function reset() {
+      setMode("random");
+      $("custom-input").value = "";
+      show("idle");
+    }
+  </script>
+</body>
+</html>
