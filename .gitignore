@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Xcode / iOS (the .xcodeproj is generated from project.yml via XcodeGen)
+ios/*.xcodeproj
+ios/*.xcworkspace
+ios/build/
+ios/DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Node (backend has its own .gitignore too)
+node_modules/
