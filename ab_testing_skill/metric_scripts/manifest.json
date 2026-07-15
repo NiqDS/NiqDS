@@ -1,0 +1,74 @@
+[
+  {
+    "code": "okved",
+    "label": "Отрасль по ОКВЭД",
+    "description": "Industry classification (OKVED code).",
+    "value_type": "categorical",
+    "usable_as": ["grouping"],
+    "script": "okved.py"
+  },
+  {
+    "code": "opf",
+    "label": "ОПФ",
+    "description": "Legal form of organization.",
+    "value_type": "categorical",
+    "usable_as": ["grouping"],
+    "script": "opf.py"
+  },
+  {
+    "code": "tb",
+    "label": "Территориальный банк (ТБ)",
+    "description": "Territorial bank / regional branch.",
+    "value_type": "categorical",
+    "usable_as": ["grouping"],
+    "script": "tb.py"
+  },
+  {
+    "code": "tenure",
+    "label": "Срок жизни в Сбере",
+    "description": "Client tenure with the bank, in years (bucketed for stratification).",
+    "value_type": "numeric",
+    "usable_as": ["grouping"],
+    "script": "tenure.py"
+  },
+  {
+    "code": "chod",
+    "label": "ЧОД (средний + суммарный)",
+    "description": "Net operating income.",
+    "value_type": "numeric",
+    "usable_as": ["grouping", "financial_effect"],
+    "script": "chod.py"
+  },
+  {
+    "code": "chep",
+    "label": "ЧЭП (средний + суммарный)",
+    "description": "Net economic profit indicator.",
+    "value_type": "numeric",
+    "usable_as": ["grouping", "financial_effect"],
+    "script": "chep.py"
+  },
+  {
+    "code": "turnover",
+    "label": "Обороты",
+    "description": "Account turnover.",
+    "value_type": "numeric",
+    "usable_as": ["grouping", "financial_effect"],
+    "script": "turnover.py"
+  },
+  {
+    "code": "revenue",
+    "label": "Выручка",
+    "description": "Client revenue.",
+    "value_type": "numeric",
+    "usable_as": ["grouping", "financial_effect"],
+    "script": "revenue.py"
+  },
+  {
+    "code": "sdo",
+    "label": "СДО",
+    "description": "СДО indicator.",
+    "value_type": "numeric",
+    "usable_as": ["grouping", "financial_effect"],
+    "script": "sdo.py"
+  }
+]

@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>АБ-тест: сбор параметров пилота</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --text: #1c2126;
+    --muted: #5b6570;
+    --border: #d8dce1;
+    --accent: #1f6feb;
+    --accent-text: #ffffff;
+    --danger: #b3261e;
+    --danger-bg: #fdecea;
+    --ok-bg: #eaf7ee;
+    --ok-text: #1e7a34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --panel: #1c1f24;
+      --text: #e7e9ec;
+      --muted: #9aa4af;
+      --border: #30353c;
+      --accent: #4b8dfa;
+      --accent-text: #0b0d10;
+      --danger: #ff6b64;
+      --danger-bg: #3a1f1e;
+      --ok-bg: #163a24;
+      --ok-text: #6fd88a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a; --panel: #1c1f24; --text: #e7e9ec; --muted: #9aa4af;
+    --border: #30353c; --accent: #4b8dfa; --accent-text: #0b0d10;
+    --danger: #ff6b64; --danger-bg: #3a1f1e; --ok-bg: #163a24; --ok-text: #6fd88a;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6f8; --panel: #ffffff; --text: #1c2126; --muted: #5b6570;
+    --border: #d8dce1; --accent: #1f6feb; --accent-text: #ffffff;
+    --danger: #b3261e; --danger-bg: #fdecea; --ok-bg: #eaf7ee; --ok-text: #1e7a34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 28px 20px 80px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+  fieldset {
+    border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px 18px;
+    margin: 0 0 18px; background: var(--panel);
+  }
+  legend { font-weight: 600; padding: 0 6px; font-size: 14px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  label:first-of-type { margin-top: 0; }
+  input[type="text"], input[type="email"], input[type="date"], input[type="number"],
+  select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--text); font: inherit;
+  }
+  textarea { resize: vertical; min-height: 52px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+  .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 14px; margin-top: 4px; }
+  .check-item { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; }
+  .check-item input { margin-top: 3px; }
+  .check-item .desc { color: var(--muted); font-size: 12px; display: block; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  button {
+    font: inherit; border: none; border-radius: 7px; padding: 10px 16px; cursor: pointer;
+  }
+  .primary { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+  .secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .file-preview { font-size: 12.5px; color: var(--muted); margin-top: 6px; white-space: pre-wrap; }
+  .banner {
+    border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 14px; display: none;
+  }
+  .banner.error { background: var(--danger-bg); color: var(--danger); display: block; }
+  .banner.ok { background: var(--ok-bg); color: var(--ok-text); display: block; }
+  .steps { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .steps ol { margin: 8px 0 0; padding-left: 20px; }
+  .steps code {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 1px 5px; font-size: 12.5px;
+  }
+  pre.code-block {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font-size: 12.5px; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>АБ-тест: параметры пилота</h1>
+  <p class="sub">
+    Заполните форму и получите request.json + список ИНН для передачи AB-testing skill.
+    Всё выполняется локально в браузере — файлы никуда не отправляются, пока вы сами их не передадите агенту.
+  </p>
+
+  <form id="pilot-form">
+    <fieldset>
+      <legend>1. Пилот</legend>
+      <label for="pilot_name">Название пилота</label>
+      <input type="text" id="pilot_name" required placeholder="cashback_q3_pilot">
+
+      <div class="row">
+        <div>
+          <label for="valid_from">Начало (valid_from)</label>
+          <input type="date" id="valid_from" required>
+        </div>
+        <div>
+          <label for="valid_to">Окончание (valid_to)</label>
+          <input type="date" id="valid_to" required>
+        </div>
+      </div>
+
+      <label for="expected_effect_pct">Ожидаемый эффект, %</label>
+      <input type="number" id="expected_effect_pct" step="0.1" min="0" value="5" required>
+
+      <label for="recalculation_frequency">Частота пересчёта фин. эффектов</label>
+      <select id="recalculation_frequency">
+        <option value="day">День</option>
+        <option value="week" selected>Неделя</option>
+        <option value="month">Месяц</option>
+      </select>
+    </fieldset>
+
+    <fieldset>
+      <legend>2. Контакты</legend>
+      <div class="row">
+        <div>
+          <label for="submitter_full_name">ФИО заказчика</label>
+          <input type="text" id="submitter_full_name" required placeholder="Иванов Иван Иванович">
+        </div>
+        <div>
+          <label for="submitter_email">Внутренняя почта заказчика</label>
+          <input type="email" id="submitter_email" required placeholder="i.ivanov@bank.internal">
+        </div>
+      </div>
+      <label for="recipient_emails">Получатели файлов КГ/ЦГ (через запятую, необязательно — по умолчанию почта заказчика)</label>
+      <input type="text" id="recipient_emails" placeholder="i.ivanov@bank.internal, team@bank.internal">
+    </fieldset>
+
+    <fieldset>
+      <legend>3. Список ИНН (ЦГ-кандидаты)</legend>
+      <label for="inn_file">CSV-файл со столбцом <code>inn</code></label>
+      <input type="file" id="inn_file" accept=".csv" required>
+      <div class="file-preview" id="inn_preview"></div>
+      <p class="hint">
+        Это только предпросмотр в браузере (количество строк, явно некорректные значения).
+        Полная валидация (контрольная сумма ИНН, проверка на дубли по «задействованным ИННкам») выполняется агентом на шаге 1-2.
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>4. Атрибуты для разбиения КГ/ЦГ</legend>
+      <div class="check-grid" id="grouping-metrics"></div>
+      <label for="custom_metric_text" style="margin-top:14px;">Нужного атрибута нет в списке? Опишите его текстом (уйдёт в очередь разработке)</label>
+      <textarea id="custom_metric_text" placeholder="Например: наличие зарплатного проекта"></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>5. Статьи для расчёта фин. эффекта пилота</legend>
+      <div class="check-grid" id="financial-metrics"></div>
+      <p class="hint">Эти же метрики используются агентом при периодическом пересчёте (шаг 6) для дэшборда в Навигаторе.</p>
+    </fieldset>
+
+    <div class="actions">
+      <button type="submit" class="primary">Сформировать request.json + inn_list.csv</button>
+    </div>
+    <div class="banner" id="form-banner"></div>
+  </form>
+
+  <div class="steps" id="handoff-steps" style="display:none; margin-top:22px;">
+    <strong>Дальше — передайте файлы агенту:</strong>
+    <ol>
+      <li>Сохраните оба скачанных файла в одну папку (например, рядом с пакетом <code>ab_testing_skill</code>).</li>
+      <li>
+        В терминале / в GigaCode-агенте выполните:
+        <pre class="code-block" id="cli-command"></pre>
+      </li>
+      <li>Или, если работаете в чате GigaCode: приложите оба файла и вставьте текст ниже как сообщение агенту.</li>
+    </ol>
+    <button type="button" class="secondary" id="copy-giga-btn">Скопировать сообщение для GigaCode</button>
+    <pre class="code-block" id="giga-message"></pre>
+  </div>
+</div>
+
+<script>
+  const METRICS_CATALOG = /*__METRICS_CATALOG__*/[]/*__END_METRICS_CATALOG__*/;
+
+  function renderMetricChecks(containerId, usableAs, namePrefix) {
+    const container = document.getElementById(containerId);
+    METRICS_CATALOG
+      .filter(m => m.usable_as.includes(usableAs))
+      .forEach(m => {
+        const wrap = document.createElement('label');
+        wrap.className = 'check-item';
+        wrap.innerHTML = `
+          <input type="checkbox" data-code="${m.code}" name="${namePrefix}">
+          <span>${m.label}<span class="desc">${m.description}</span></span>
+        `;
+        container.appendChild(wrap);
+      });
+  }
+  renderMetricChecks('grouping-metrics', 'grouping', 'grouping');
+  renderMetricChecks('financial-metrics', 'financial_effect', 'financial');
+
+  function checkedCodes(namePrefix) {
+    return Array.from(document.querySelectorAll(`input[name="${namePrefix}"]:checked`))
+      .map(el => el.dataset.code);
+  }
+
+  const innFileInput = document.getElementById('inn_file');
+  const innPreview = document.getElementById('inn_preview');
+  let innFileText = '';
+  let innFileName = 'inn_list.csv';
+
+  innFileInput.addEventListener('change', () => {
+    const file = innFileInput.files[0];
+    if (!file) { innPreview.textContent = ''; return; }
+    innFileName = file.name;
+    const reader = new FileReader();
+    reader.onload = () => {
+      innFileText = reader.result;
+      const lines = innFileText.split(/\r?\n/).filter(l => l.trim().length > 0);
+      const header = (lines[0] || '').split(',').map(s => s.trim().toLowerCase());
+      const innIdx = header.indexOf('inn');
+      let badCount = 0;
+      if (innIdx === -1) {
+        innPreview.textContent = `Внимание: в файле не найден столбец "inn" (заголовок: ${lines[0] || '(пусто)'})`;
+        return;
+      }
+      for (let i = 1; i < lines.length; i++) {
+        const cell = (lines[i].split(',')[innIdx] || '').trim();
+        if (!/^\d{10}$|^\d{12}$/.test(cell)) badCount++;
+      }
+      innPreview.textContent = `Строк: ${lines.length - 1}. Похожих на некорректные ИНН (не 10/12 цифр): ${badCount}.`;
+    };
+    reader.readAsText(file, 'utf-8');
+  });
+
+  function download(filename, text, mime) {
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  const banner = document.getElementById('form-banner');
+
+  document.getElementById('pilot-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    banner.className = 'banner'; banner.textContent = '';
+
+    if (!innFileText) {
+      banner.className = 'banner error';
+      banner.textContent = 'Прикрепите CSV-файл со списком ИНН.';
+      return;
+    }
+    const validFrom = document.getElementById('valid_from').value;
+    const validTo = document.getElementById('valid_to').value;
+    if (validFrom && validTo && validFrom > validTo) {
+      banner.className = 'banner error';
+      banner.textContent = 'Дата начала пилота позже даты окончания.';
+      return;
+    }
+
+    const recipientsRaw = document.getElementById('recipient_emails').value.trim();
+    const customMetricRaw = document.getElementById('custom_metric_text').value.trim();
+
+    const request = {
+      pilot_name: document.getElementById('pilot_name').value.trim(),
+      valid_from: validFrom,
+      valid_to: validTo,
+      submitter_email: document.getElementById('submitter_email').value.trim(),
+      submitter_full_name: document.getElementById('submitter_full_name').value.trim(),
+      recipient_emails: recipientsRaw ? recipientsRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
+      expected_effect_pct: parseFloat(document.getElementById('expected_effect_pct').value || '0'),
+      recalculation_frequency: document.getElementById('recalculation_frequency').value,
+      grouping_metrics: checkedCodes('grouping'),
+      financial_effect_articles: checkedCodes('financial'),
+      custom_metric_requests: customMetricRaw ? [customMetricRaw] : []
+    };
+
+    download('request.json', JSON.stringify(request, null, 2), 'application/json');
+    download('inn_list.csv', innFileText, 'text/csv');
+
+    banner.className = 'banner ok';
+    banner.textContent = 'Файлы request.json и inn_list.csv скачаны. Смотрите шаги передачи агенту ниже.';
+
+    document.getElementById('cli-command').textContent =
+      'python -m skill.cli run --request request.json --inn-file inn_list.csv';
+
+    const gigaMessage =
+`Запусти AB-testing skill (ab_testing_skill/) для нового пилота.
+Параметры прикреплены в request.json, список ИНН — в inn_list.csv.
+Выполни: python -m skill.cli run --request request.json --inn-file inn_list.csv
+Верни мне итоговые файлы control_group / target_group и, если есть, конфликты по уже задействованным ИННкам.`;
+    document.getElementById('giga-message').textContent = gigaMessage;
+    document.getElementById('handoff-steps').style.display = 'block';
+    document.getElementById('handoff-steps').scrollIntoView({ behavior: 'smooth' });
+  });
+
+  document.getElementById('copy-giga-btn').addEventListener('click', () => {
+    const text = document.getElementById('giga-message').textContent;
+    navigator.clipboard?.writeText(text);
+  });
+</script>
+</body>
+</html>

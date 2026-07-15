@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# runtime pilot output -- keep the folder structure, not generated content
+data/pilots/*
+!data/pilots/.gitkeep
+data/navigator_dropzone/

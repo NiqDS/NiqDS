@@ -1,0 +1,8 @@
+# Everything the skill needs is in the standard library except optional xlsx
+# output. Without openpyxl, exporter.py transparently falls back to .csv --
+# useful in locked-down environments where installing from PyPI isn't possible.
+openpyxl>=3.1
+
+# Only needed if MetricScriptConfig.use_spark=True (i.e. wired to a real
+# PySpark script bank instead of the local demo scripts).
+# pyspark>=3.4
