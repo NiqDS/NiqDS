@@ -23,7 +23,7 @@ def test_financial_effect_append_accumulates_report_dates(tmp_path):
     path = write_financial_effect_file(tmp_path, day2, values, group_of, mode="append")
 
     header, rows = read_rows(path)
-    assert header == ["report_date", "codes", "group", "chod"]
+    assert header == ["report_date", "codes", "group", "chod", "stat_significance"]
     assert len(rows) == 4  # 2 clients x 2 report dates
     report_dates = {row[0] for row in rows}
     assert report_dates == {day1.isoformat(), day2.isoformat()}

@@ -16,6 +16,11 @@ Deliverable shape, per the brief:
   grouping metrics used, financial-effect articles measured, expected
   effect %, balance-check result) — see `_format_pilot_package` in
   `skill/pipeline.py`.
+- **The analyst of record** (`analyst_email` on the request) additionally
+  gets the *raw* submission — the uploaded `inn_list.csv` exactly as sent,
+  plus a `request.json` copy of the pilot parameters — sent immediately
+  after step 1 validation, before any blocking/filtering, and not sent to
+  anyone else.
 - A local pilot folder (`data/pilots/<slug>/`) is created for monitoring,
   matching spec step 4's "локально создается папка с названием и сроком
   пилота".
@@ -42,13 +47,17 @@ wired to an HTTP endpoint with no change to `skill/pipeline.py`.
 pip install -r requirements.txt   # optional: only needed for .xlsx output, else falls back to .csv
 cd ab_testing_skill
 
-# 1. open web/index.html in a browser, fill the form, submit ->
-#    downloads request.json + inn_list.csv
+# 1. open web/hub.html in a browser -- 3 big buttons, one per product.
+#    "АБ-Тест параметры пилота" -> web/index.html: fill the form, submit ->
+#    downloads request.json + inn_list.csv. The other two buttons are
+#    placeholder pages for the two follow-up products (see "Branching into
+#    more products" below).
 
-# 2. hand them to the skill
+# 2. hand the two downloaded files to the skill
 python -m skill.cli run --request request.json --inn-file inn_list.csv
 
 # 3. later, on whatever cadence the pilot's recalculation_frequency implies
+#    (currently locked to monthly -- see "Assumptions" below)
 python -m skill.cli recalc --pilot-folder "data/pilots/<pilot_slug>"
 ```
 
@@ -62,17 +71,23 @@ python -m pytest tests/ -q
 ## Architecture
 
 ```
-web/index.html  ──(request.json + inn_list.csv)──▶  skill/cli.py
+web/hub.html ──▶ web/index.html ──(request.json + inn_list.csv)──▶ skill/cli.py
                                                           │
                                                           ▼
                                                   skill/pipeline.py
                                                   run_intake()
         step 1  inn_utils.validate_file()      ── format + FNS checksum
+        step 1a registries.InnStatusRegistry   ── NEW: raw inn_list + request.json
+                connectors/email_connector.py       to analyst_email only, pre-filtering
+        step 2a registries.check_master_status()── NEW: gate vs master Used/Unused/
+                                                     Used_as_cg status table
         step 2  registries.check_and_register()── dedupe vs "involved INNs"
         step 3  registries.MetricRequestsRegistry ── new-metric backlog
         step 4  metrics/runner.py + splitter.py ── stratified split + balance check
                 exporter.write_group_file()     ── control_group / target_group
-        step 5  exporter.write_financial_effect_file()
+                registries.InnStatusRegistry.upsert_many() ── NEW: mark cg/tg in
+                                                     the master status table
+        step 5  exporter.write_financial_effect_file() ── + stat_significance column
                 connectors/email_connector.py   ── requester / dev / analytics mail
                 connectors/dashboard_connector.py ── Navigator upload
                                                           │
@@ -91,6 +106,9 @@ web/index.html  ──(request.json + inn_list.csv)──▶  skill/cli.py
                                                    caller/GigaCode wrapper)
 ```
 
+Steps labeled "NEW" aren't in the original spec — see "Assumptions & open
+questions" below for why each was added and how it was resolved.
+
 ### Directory layout
 
 ```
@@ -98,7 +116,8 @@ skill/                  core package (no I/O side effects outside what's listed 
   config.py             every path/threshold a deployment needs to change lives here
   models.py              PilotRequest, SplitResult, PilotResult, ...
   inn_utils.py           step 1: file format + INN checksum validation
-  registries.py           the 3 prerequisite CSV tables from the spec + step 2 logic
+  registries.py           the 3 prerequisite CSV tables from the spec + step 2 logic,
+                           plus the NEW InnStatusRegistry (master Used/Unused/Used_as_cg)
   metrics/runner.py       dispatches metric codes to metric_scripts/*
   splitter.py             step 4: stratified split + financial balance check
   exporter.py             xlsx/csv writers (falls back to csv without openpyxl)
@@ -108,12 +127,17 @@ skill/                  core package (no I/O side effects outside what's listed 
   cli.py                   `python -m skill.cli run|recalc|metrics`
 metric_scripts/           demo "bank of PySpark scripts", one file per metric
   manifest.json            catalog: code, label, value_type, usable_as, script
+  subscriptions.json       alias -> real table name/description (edit this, not the scripts)
+  subscriptions.py         get_subscription(alias) loader, used from a metric script's run()
 sample_data/               demo reference data + empty prerequisite tables
 web/
-  _template.html           source template (edit this, not index.html)
+  hub.html                 landing page: 3 big buttons, one per product
+  _template.html           source template for index.html (edit this, not index.html)
   build_form.py            regenerates index.html's metric checkboxes from manifest.json
-  index.html               generated MVP intake form — open directly in a browser
-tests/                     pytest suite (27 tests), all I/O redirected into tmp_path
+  index.html               generated MVP intake form for "АБ-Тест параметры пилота"
+  km_test.html              placeholder for "Тест-параметры КМ" (not built yet)
+  target_group_picker.html  placeholder for "Подбор Целевой группы для пилота" (not built yet)
+tests/                     pytest suite, all I/O redirected into tmp_path
 docs/original_spec_ru.md   the original spec, verbatim, for traceability
 data/pilots/               runtime output — one folder per pilot (gitignored contents)
 ```
@@ -150,9 +174,27 @@ stub for the real thing:
 | Integration | Default (safe, local) | Production |
 |---|---|---|
 | "Involved INNs" / duplicates / overlap tables | CSV files under `sample_data/` | Swap `skill/registries.py`'s `_CsvRegistry` for a DB-backed class with the same `load`/`append` methods |
-| Per-INN attributes (OKVED/OPF/TB/tenure/ЧОД/ЧЭП/...) | `metric_scripts/*.py` read `sample_data/attributes_reference.csv` | Point `MetricScriptConfig.scripts_dir` at the real PySpark script bank (same `run(inn_list, as_of_date, spark)` signature) and set `AB_SKILL_USE_SPARK=true` |
+| Master INN status table (Used/Unused/Used_as_cg) | `sample_data/inn_master_status.csv` via `InnStatusRegistry` | Swap for a DB-backed class with the same `status_of`/`upsert_many` methods |
+| Per-INN attributes (OKVED/OPF/TB/tenure/ЧОД/ЧЭП/...) | `metric_scripts/*.py` read `sample_data/attributes_reference.csv` | Point `MetricScriptConfig.scripts_dir` at the real PySpark script bank (same `run(inn_list, as_of_date, spark)` signature) and set `AB_SKILL_USE_SPARK=true`; look up real table names via `metric_scripts.subscriptions.get_subscription(alias)` instead of hardcoding them in each script |
 | Email | `LoggingEmailConnector` writes `.eml.txt` files to `data/pilots/_outbox/` | `SmtpEmailConnector` in `skill/connectors/email_connector.py` (fill in host/port/sender) |
 | Navigator dashboard upload | `LocalDropzoneDashboardConnector` copies the workbook to `data/navigator_dropzone/` | `HttpNavigatorConnector` stub — raises `NotImplementedError` until Navigator's real upload API is known |
+
+### Data-source subscriptions (`metric_scripts/subscriptions.json`)
+
+Keeps real internal table names out of individual metric scripts. Add an
+entry (alias -> `{"table": "...", "description": "..."}`), save the file,
+then reference it from a script instead of hardcoding the table name:
+
+```python
+from metric_scripts.subscriptions import get_subscription
+table = get_subscription("chod_source")
+df = spark.table(table)...
+```
+
+Renaming/repointing an alias in `subscriptions.json` then never requires
+touching the scripts that use it. The bundled file ships with placeholder
+`example_db.*` table names — replace them with real ones in your internal
+copy; don't commit real internal table names to a public repo.
 
 ## Assumptions & open questions
 
@@ -213,6 +255,67 @@ clarification round:
   высылается команде разработки") isn't one of the spec's 3 prerequisite
   tables; added as a 4th CSV so requests are queryable instead of a
   one-off email that's easy to lose.
+
+Decisions from the most recent round of additions:
+
+- **Master INN status table (`InnStatusRegistry`) is additive, not a
+  replacement** for `InvolvedInnsRegistry`. They answer different
+  questions: the master table is a fast single-flag check ("can this INN
+  be used right now" — Used / Unused / Used_as_cg), checked as its own
+  step (2a) before the existing overlap check (step 2); `InvolvedInnsRegistry`
+  remains the historical, date-ranged log that feeds the overlap-suggestion
+  engine and audit trail. Both are updated after every split. If your
+  actual master-status table already replaces the need for date-ranged
+  tracking, step 2's `check_and_register` can be removed later without
+  touching step 2a.
+- **`Used_as_cg` does not block reuse**, only `Used` does
+  (`MasterStatusConfig.blocking_statuses`) — kept consistent with the
+  existing CG-is-always-reusable assumption in `OverlapConfig` above.
+  Change `blocking_statuses` if Used_as_cg should block too.
+- **The analyst-only raw copy (step 1a) fires before any filtering**, on
+  the request exactly as submitted — not the post-split control/target
+  groups (those still go to the requester/dev/analytics team separately
+  in step 4/5, per the original spec). If the analyst should instead get
+  the *final* groups instead of (or in addition to) the raw submission,
+  that's a one-line change to who step 4/5's emails are addressed to.
+- **`recalculation_frequency` is locked to `"month"` only in the HTML
+  form** (`web/_template.html`'s select is disabled with a single option).
+  This is a UI-level restriction only — `skill/models.py`,
+  `skill/pipeline.py`, and `skill/monitoring.py` still accept/handle
+  `"day"`/`"week"` unchanged if a request.json is hand-written or built by
+  another caller. Add a check in `PilotRequest.from_dict` or
+  `run_intake` if `"month"` needs to be enforced server-side too.
+- **`stat_significance` is a placeholder column only** — added to every
+  row of `financial_effect.xlsx/csv` (`exporter.write_financial_effect_file`)
+  from the very first write, always `None`/NULL for now. No significance
+  test is implemented yet; wire the actual computation into that function
+  once there's enough report_date history per pilot to run one (a paired
+  test comparing CG vs TG means per financial-effect article is the
+  obvious starting point).
+
+## Branching into more products
+
+`web/hub.html` is the entry point now: 3 big buttons, one per product.
+
+1. **АБ-Тест параметры пилота** — this package, fully built (`web/index.html`).
+2. **Тест-параметры КМ** — "Исследования эффективности работы клиентских
+   менеджеров, относительно заявленного плана." Placeholder page only
+   (`web/km_test.html`); no backend yet. When this gets built out, it'll
+   likely want its own `skill`-style package (own metrics, own splitter or
+   no split at all, own pipeline) rather than being bolted onto this one —
+   client-manager performance-vs-plan is a different unit of analysis
+   (КМ, not client INN) from everything else here.
+3. **Подбор Целевой группы для пилота** — "Заполните требования для выбора
+   целевой группы для проведения пилота из метрик на выбор и мы поможем
+   вам ее подобрать." Placeholder page only (`web/target_group_picker.html`).
+   Unlike the AB-test flow (which takes an already-chosen INN list and
+   splits it), this one picks a target group *from scratch* by metric
+   criteria — closer to a query/filter tool over `metric_scripts`' data
+   sources than to `skill/splitter.py`.
+
+Both placeholders are static pages with no form yet — just enough for the
+hub's links to not 404. Come back to this section once either product's
+requirements are scoped.
 
 ## Known limitation: over-stratification on small candidate lists
 

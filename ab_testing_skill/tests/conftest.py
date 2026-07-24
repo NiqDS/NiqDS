@@ -25,4 +25,5 @@ def scratch_config(tmp_path):
     cfg.registry.metric_requests_path = tmp_path / "metric_requests.csv"
     cfg.storage.pilots_root = tmp_path / "pilots"
     cfg.storage.navigator_dropzone = tmp_path / "navigator_dropzone"
+    cfg.master_status.path = tmp_path / "inn_master_status.csv"
     return cfg

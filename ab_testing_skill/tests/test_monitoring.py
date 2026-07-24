@@ -20,6 +20,7 @@ def _make_pilot(scratch_config):
         submitter_email="submitter@bank.internal",
         submitter_full_name="Submitter Name",
         recipient_emails=[],
+        analyst_email="analyst@bank.internal",
         expected_effect_pct=5.0,
         recalculation_frequency="week",
         grouping_metrics=["okved"],
@@ -38,7 +39,7 @@ def test_recalculation_appends_new_report_date(scratch_config):
     run_recalculation(pilot_folder, config=scratch_config, as_of_date=date.today() + timedelta(days=8))
     header, rows_after_second = read_rows(Path(result.financial_effect_file))
 
-    assert header == ["report_date", "codes", "group", "chod", "revenue"]
+    assert header == ["report_date", "codes", "group", "chod", "revenue", "stat_significance"]
     assert len(rows_after_second) == n_clients * 2
 
 

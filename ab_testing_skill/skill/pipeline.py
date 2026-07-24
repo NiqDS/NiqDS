@@ -22,11 +22,13 @@ from .metrics.runner import MetricRunner
 from .models import OverlapFinding, PilotRequest, PilotResult, ValidationIssue
 from .registries import (
     DuplicatesRegistry,
+    InnStatusRegistry,
     InvolvedInnsRegistry,
     MetricRequestRecord,
     MetricRequestsRegistry,
     OverlapRegistry,
     check_and_register,
+    check_master_status,
     finalize_role,
 )
 from .splitter import split
@@ -46,15 +48,19 @@ class IntakeRejected(Exception):
 
 
 class NoEligibleClientsError(Exception):
-    """Every submitted INN was already active in another pilot (step 2) --
+    """Every submitted INN was blocked -- either by the master-status gate
 
-    nothing left to split. Not explicitly covered by the spec; surfaced as
-    its own exception rather than silently producing empty CG/TG files.
+    (step 2a) or the involved_inns overlap check (step 2) -- leaving
+    nothing to split. Not explicitly covered by the spec; surfaced as its
+    own exception rather than silently producing empty CG/TG files.
+    `blocked` is a list of INN strings (master-status block) or
+    OverlapFinding objects (overlap-check block) depending on which step
+    raised it.
     """
 
-    def __init__(self, blocked: list[OverlapFinding]):
+    def __init__(self, blocked: list[OverlapFinding] | list[str]):
         self.blocked = blocked
-        super().__init__("no eligible INNs remain after the overlap check")
+        super().__init__("no eligible INNs remain after the pre-split checks")
 
 
 def build_default_connectors(config: SkillConfig) -> tuple[EmailConnector, DashboardConnector]:
@@ -84,12 +90,58 @@ def run_intake(
     pilot_folder = config.storage.pilots_root / request.slug()
     pilot_folder.mkdir(parents=True, exist_ok=True)
 
+    # --- Step 1a (NEW, not in original spec): raw submission to the analyst only ---
+    # Sent as-submitted, before any blocking/filtering, since the analyst of
+    # record wants the request exactly as the requester sent it.
+    request_copy_path = pilot_folder / "request.json"
+    request_copy_path.write_text(
+        json.dumps(request.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    email_connector.send(
+        OutgoingEmail(
+            to=[request.analyst_email],
+            subject=f"AB pilot '{request.pilot_name}': raw submission (INN list + parameters)",
+            body=(
+                f"Raw INN list and pilot parameters for '{request.pilot_name}', as submitted by "
+                f"{request.submitter_full_name} <{request.submitter_email}>. Sent only to you as "
+                "the analyst of record for this pilot, ahead of any validation/splitting."
+            ),
+            attachments=[Path(inn_file), request_copy_path],
+        )
+    )
+
+    # --- Step 2a (NEW, not in original spec): master INN status gate -----
+    # Checked before the involved_inns overlap check below so a client
+    # flagged "Used" is rejected on the simplest, fastest signal first.
+    master_status = InnStatusRegistry(config.master_status.path)
+    inns_after_status_check, status_blocked = check_master_status(
+        validation.valid_inns, master_status, config.master_status.blocking_statuses
+    )
+    if status_blocked:
+        report = _format_master_status_report(request, status_blocked)
+        email_connector.send(
+            OutgoingEmail(
+                to=[config.notify.dev_team_email],
+                subject=f"[AB pilot] master-status block for '{request.pilot_name}'",
+                body=report,
+            )
+        )
+        email_connector.send(
+            OutgoingEmail(
+                to=[request.submitter_email],
+                subject=f"Please review: {len(status_blocked)} client(s) flagged as in-use",
+                body=report,
+            )
+        )
+    if not inns_after_status_check:
+        raise NoEligibleClientsError(status_blocked)
+
     # --- Step 2: dedupe against the "involved INNs" registry -------------
     involved = InvolvedInnsRegistry(config.registry.involved_inns_path)
     duplicates = DuplicatesRegistry(config.registry.duplicates_path)
     overlap = OverlapRegistry(config.registry.overlap_path)
     available, blocked = check_and_register(
-        validation.valid_inns,
+        inns_after_status_check,
         request,
         involved,
         duplicates,
@@ -145,6 +197,12 @@ def run_intake(
         finalize_role(involved, inn, request.pilot_name, "cg")
     for inn in split_result.target:
         finalize_role(involved, inn, request.pilot_name, "tg")
+
+    master_status.upsert_many(
+        {inn: "Used_as_cg" for inn in split_result.control}
+        | {inn: "Used" for inn in split_result.target},
+        pilot_name=request.pilot_name,
+    )
 
     email_connector.send(
         OutgoingEmail(
@@ -222,11 +280,25 @@ def _write_pilot_meta(pilot_folder: Path, request: PilotRequest) -> None:
         "submitter_email": request.submitter_email,
         "submitter_full_name": request.submitter_full_name,
         "recipient_emails": request.recipient_emails,
+        "analyst_email": request.analyst_email,
         "created_at": date.today().isoformat(),
     }
     (pilot_folder / "pilot_meta.json").write_text(
         json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8"
     )
+
+
+def _format_master_status_report(request: PilotRequest, blocked_inns: list[str]) -> str:
+    lines = [
+        f"Pilot: {request.pilot_name} ({request.valid_from} .. {request.valid_to})",
+        f"Submitted by: {request.submitter_full_name} <{request.submitter_email}>",
+        "",
+        f"{len(blocked_inns)} client(s) flagged in the master INN status table and excluded:",
+    ]
+    lines.extend(f"  - INN {inn}" for inn in blocked_inns)
+    lines.append("")
+    lines.append("Please confirm the client list is intentional, or send a corrected list.")
+    return "\n".join(lines)
 
 
 def _format_overlap_report(request: PilotRequest, blocked: list[OverlapFinding]) -> str:

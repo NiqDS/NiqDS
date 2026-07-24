@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Тест-параметры КМ</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8; --panel: #ffffff; --text: #1c2126; --muted: #5b6570;
+    --border: #d8dce1; --accent: #1f6feb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14161a; --panel: #1c1f24; --text: #e7e9ec; --muted: #9aa4af; --border: #30353c; --accent: #4b8dfa; }
+  }
+  :root[data-theme="dark"] { --bg: #14161a; --panel: #1c1f24; --text: #e7e9ec; --muted: #9aa4af; --border: #30353c; --accent: #4b8dfa; }
+  :root[data-theme="light"] { --bg: #f5f6f8; --panel: #ffffff; --text: #1c2126; --muted: #5b6570; --border: #d8dce1; --accent: #1f6feb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 40px 20px 80px; }
+  a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
+  a.back:hover { color: var(--accent); }
+  h1 { font-size: 22px; margin: 20px 0 8px; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px 22px; margin-top: 16px;
+  }
+  .badge {
+    display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+    text-transform: uppercase; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 8px; margin-bottom: 12px;
+  }
+  p { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="hub.html">&larr; Все инструменты</a>
+  <h1>Тест-параметры КМ</h1>
+  <div class="panel">
+    <span class="badge">В разработке</span>
+    <p>Исследования эффективности работы клиентских менеджеров, относительно заявленного плана.</p>
+    <p>Этот инструмент ещё не реализован — форма и логика появятся отдельным пакетом, аналогичным «АБ-Тест параметры пилота», но со своим набором метрик и UI.</p>
+  </div>
+</div>
+</body>
+</html>

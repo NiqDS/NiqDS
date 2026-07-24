@@ -20,6 +20,7 @@ def _request(**overrides):
         submitter_email="submitter@bank.internal",
         submitter_full_name="Submitter Name",
         recipient_emails=["submitter@bank.internal"],
+        analyst_email="analyst@bank.internal",
         expected_effect_pct=5.0,
         recalculation_frequency="week",
         grouping_metrics=["okved", "opf"],
@@ -49,6 +50,52 @@ def test_run_intake_produces_balanced_groups_and_notifies_everyone(scratch_confi
     assert analytics_emails
     assert "Grouping/split metrics" in analytics_emails[0].body
     assert "Financial effect articles measured" in analytics_emails[0].body
+
+    # step 1a: the analyst gets exactly one email, with the raw inn file + request.json,
+    # sent before any blocking/filtering -- not the same package the dev/analytics teams get.
+    analyst_emails = [e for e in outbox.sent if e.to == ["analyst@bank.internal"]]
+    assert len(analyst_emails) == 1
+    attachment_names = {a.name for a in analyst_emails[0].attachments}
+    assert attachment_names == {SAMPLE_INN_FILE.name, "request.json"}
+
+
+def test_master_status_blocks_used_but_allows_used_as_cg_and_unused(scratch_config, tmp_path):
+    from skill.registries import InnStatusRegistry
+
+    used_inn, used_as_cg_inn, unseen_inn = "8319323530", "1346564387", "3319561976"
+
+    status_reg = InnStatusRegistry(scratch_config.master_status.path)
+    status_reg.upsert_many({used_inn: "Used", used_as_cg_inn: "Used_as_cg"}, pilot_name="other_pilot")
+
+    with pytest.raises(NoEligibleClientsError):
+        # a request containing ONLY the "Used" INN should be fully blocked at the master-status gate
+        only_used = tmp_path / "only_used.csv"
+        only_used.write_text(f"inn\n{used_inn}\n", encoding="utf-8")
+        run_intake(
+            _request(pilot_name="blocked_pilot", grouping_metrics=[], financial_effect_articles=[]),
+            only_used,
+            config=scratch_config,
+            email_connector=LoggingEmailConnector(tmp_path / "outbox_blocked"),
+        )
+
+    # "Used_as_cg" and a fresh/unseen INN should both go through fine
+    inn_file = tmp_path / "inns.csv"
+    inn_file.write_text(f"inn\n{used_inn}\n{used_as_cg_inn}\n{unseen_inn}\n", encoding="utf-8")
+    result = run_intake(
+        _request(pilot_name="mixed_pilot", grouping_metrics=[], financial_effect_articles=[]),
+        inn_file,
+        config=scratch_config,
+        email_connector=LoggingEmailConnector(tmp_path / "outbox_mixed"),
+    )
+    all_used = set(result.split.control) | set(result.split.target)
+    assert used_inn not in all_used
+    assert used_as_cg_inn in all_used
+    assert unseen_inn in all_used
+
+    # after the split, the master status table reflects the new roles
+    updated = status_reg.load()
+    assert updated[used_as_cg_inn].status in ("Used", "Used_as_cg")
+    assert updated[unseen_inn].status in ("Used", "Used_as_cg")
 
 
 def test_reusing_former_target_members_is_blocked_but_control_members_are_not(scratch_config, tmp_path):

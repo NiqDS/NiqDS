@@ -42,6 +42,9 @@ class MetricScriptConfig:
 
     scripts_dir: Path = PACKAGE_ROOT / "metric_scripts"
     manifest_path: Path = PACKAGE_ROOT / "metric_scripts" / "manifest.json"
+    # alias -> real table name, read via metric_scripts.subscriptions.get_subscription();
+    # keeps real table names out of individual scripts. See that module's docstring.
+    subscriptions_path: Path = PACKAGE_ROOT / "metric_scripts" / "subscriptions.json"
     use_spark: bool = os.environ.get("AB_SKILL_USE_SPARK", "false").lower() == "true"
     demo_reference_path: Path = PACKAGE_ROOT / "sample_data" / "attributes_reference.csv"
 
@@ -80,6 +83,21 @@ class OverlapConfig:
 
 
 @dataclass
+class MasterStatusConfig:
+    """NEW, not in the original spec: a master current-status table per
+
+    INN (Used / Unused / Used_as_cg), checked as its own step before the
+    existing InvolvedInnsRegistry overlap check. ASSUMPTION: "Used" blocks
+    reuse, "Used_as_cg" and "Unused" don't -- consistent with the existing
+    CG-is-always-reusable assumption in OverlapConfig above. Change
+    `blocking_statuses` if the business wants Used_as_cg to block too.
+    """
+
+    path: Path = PACKAGE_ROOT / "sample_data" / "inn_master_status.csv"
+    blocking_statuses: tuple[str, ...] = ("Used",)
+
+
+@dataclass
 class NotificationConfig:
     dev_team_email: str = os.environ.get("AB_SKILL_DEV_TEAM_EMAIL", "dev-team@bank.internal")
     analytics_team_email: str = os.environ.get(
@@ -104,6 +122,7 @@ class SkillConfig:
     metrics: MetricScriptConfig = field(default_factory=MetricScriptConfig)
     split: SplitConfig = field(default_factory=SplitConfig)
     overlap: OverlapConfig = field(default_factory=OverlapConfig)
+    master_status: MasterStatusConfig = field(default_factory=MasterStatusConfig)
     notify: NotificationConfig = field(default_factory=NotificationConfig)
     storage: PilotStorageConfig = field(default_factory=PilotStorageConfig)
 

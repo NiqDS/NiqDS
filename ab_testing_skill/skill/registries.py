@@ -246,6 +246,82 @@ def check_and_register(
     return available, blocked
 
 
+VALID_INN_STATUSES = ("Used", "Unused", "Used_as_cg")
+
+
+@dataclass
+class InnStatusRecord:
+    inn: str
+    status: str  # one of VALID_INN_STATUSES
+    pilot_name: str
+    updated_date: str
+
+
+class InnStatusRegistry:
+    """NEW, not one of the original 3 prerequisite tables: a master
+
+    current-status table, one row per INN, holding a single flag (Used /
+    Unused / Used_as_cg). Requested separately from InvolvedInnsRegistry
+    above and kept alongside it rather than replacing it -- this table
+    answers "can this INN be used right now" with one upsertable flag;
+    InvolvedInnsRegistry keeps the historical, date-ranged log of which
+    pilot(s) an INN has actually participated in (needed for the
+    overlap-suggestion engine and audit trail). See README "Assumptions"
+    for how the two are kept in sync.
+
+    Unlike the append-only `_CsvRegistry` tables, this one is upserted:
+    each INN has exactly one row reflecting its current state.
+    """
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        _ensure_file(self.path, [f.name for f in fields(InnStatusRecord)])
+
+    def load(self) -> dict[str, InnStatusRecord]:
+        with open(self.path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            return {row["inn"]: InnStatusRecord(**row) for row in reader}
+
+    def status_of(self, inn_list: list[str]) -> dict[str, str]:
+        """Missing INNs default to "Unused" (never seen by the skill before)."""
+        records = self.load()
+        return {inn: records[inn].status if inn in records else "Unused" for inn in inn_list}
+
+    def upsert_many(self, statuses: dict[str, str], pilot_name: str) -> None:
+        for status in statuses.values():
+            if status not in VALID_INN_STATUSES:
+                raise ValueError(f"invalid INN status '{status}', expected one of {VALID_INN_STATUSES}")
+        records = self.load()
+        today = date.today().isoformat()
+        for inn, status in statuses.items():
+            records[inn] = InnStatusRecord(inn=inn, status=status, pilot_name=pilot_name, updated_date=today)
+        header = [f.name for f in fields(InnStatusRecord)]
+        with open(self.path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=header)
+            writer.writeheader()
+            for rec in records.values():
+                writer.writerow(asdict(rec))
+
+
+def check_master_status(
+    inn_list: list[str],
+    registry: InnStatusRegistry,
+    blocking_statuses: tuple[str, ...],
+) -> tuple[list[str], list[str]]:
+    """NEW step, not in the original spec: gate the submitted list against
+
+    the master status table before any other processing. Returns
+    (available_inns, blocked_inns) -- blocked_inns is just a list of INN
+    strings (the status table doesn't carry the richer per-pilot detail
+    InvolvedInnsRegistry does, by design -- it's meant to be a fast,
+    simple flag check).
+    """
+    statuses = registry.status_of(inn_list)
+    available = [inn for inn in inn_list if statuses[inn] not in blocking_statuses]
+    blocked = [inn for inn in inn_list if statuses[inn] in blocking_statuses]
+    return available, blocked
+
+
 def finalize_role(
     involved: InvolvedInnsRegistry, inn: str, pilot_name: str, role: str
 ) -> None:

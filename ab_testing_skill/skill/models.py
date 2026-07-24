@@ -57,6 +57,7 @@ class PilotRequest:
     submitter_email: str
     submitter_full_name: str
     recipient_emails: list[str]
+    analyst_email: str  # the analyst who handles pilots; gets the raw inn_list + request only
     expected_effect_pct: float
     recalculation_frequency: str  # "day" | "week" | "month"
     grouping_metrics: list[str]  # e.g. ["okved", "opf", "tb", "tenure"]
@@ -80,12 +81,34 @@ class PilotRequest:
             submitter_email=data["submitter_email"],
             submitter_full_name=data["submitter_full_name"],
             recipient_emails=list(data.get("recipient_emails") or []),
+            analyst_email=data["analyst_email"],
             expected_effect_pct=float(data["expected_effect_pct"]),
             recalculation_frequency=data["recalculation_frequency"],
             grouping_metrics=list(data.get("grouping_metrics") or []),
             financial_effect_articles=list(data.get("financial_effect_articles") or []),
             custom_metric_requests=list(data.get("custom_metric_requests") or []),
         )
+
+    def to_dict(self) -> dict:
+        """Inverse of from_dict() -- the same JSON shape web/index.html
+
+        produces. Used to save/forward a copy of the raw submission (e.g.
+        to the analyst of record; see pipeline.run_intake's step 1a).
+        """
+        return {
+            "pilot_name": self.pilot_name,
+            "valid_from": self.valid_from.isoformat(),
+            "valid_to": self.valid_to.isoformat(),
+            "submitter_email": self.submitter_email,
+            "submitter_full_name": self.submitter_full_name,
+            "recipient_emails": self.recipient_emails,
+            "analyst_email": self.analyst_email,
+            "expected_effect_pct": self.expected_effect_pct,
+            "recalculation_frequency": self.recalculation_frequency,
+            "grouping_metrics": self.grouping_metrics,
+            "financial_effect_articles": self.financial_effect_articles,
+            "custom_metric_requests": self.custom_metric_requests,
+        }
 
 
 @dataclass

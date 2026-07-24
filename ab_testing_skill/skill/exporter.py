@@ -85,15 +85,23 @@ def write_financial_effect_file(
 
     saved for upload to Navigator. See config.PilotStorageConfig.recalc_mode
     for the append-vs-overwrite assumption.
+
+    Always includes a `stat_significance` column (statistical significance
+    of the CG/TG difference on this pilot's effect). NEW, not in the
+    original spec, and not computed yet -- every row gets `None`/NULL as a
+    placeholder starting from the very first write; wire up the actual
+    test (once there's enough data across report_dates to run one) by
+    filling that column in here instead of hardcoding None.
     """
     stem = pilot_folder / "financial_effect"
     path = resolve_export_path(stem)
     articles = sorted(values.keys())
-    header = ["report_date", "codes", "group"] + articles
+    header = ["report_date", "codes", "group"] + articles + ["stat_significance"]
     all_inns = sorted({inn for article_values in values.values() for inn in article_values})
     new_rows = [
         [report_date.isoformat(), inn, group_of.get(inn, "unknown")]
         + [values[article].get(inn) for article in articles]
+        + [None]  # stat_significance placeholder -- see docstring
         for inn in all_inns
     ]
 

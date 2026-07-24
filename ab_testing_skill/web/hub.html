@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Аналитика пилотов — выбор инструмента</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --text: #1c2126;
+    --muted: #5b6570;
+    --border: #d8dce1;
+    --accent: #1f6feb;
+    --accent-text: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel: #1c1f24; --text: #e7e9ec; --muted: #9aa4af;
+      --border: #30353c; --accent: #4b8dfa; --accent-text: #0b0d10;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a; --panel: #1c1f24; --text: #e7e9ec; --muted: #9aa4af;
+    --border: #30353c; --accent: #4b8dfa; --accent-text: #0b0d10;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6f8; --panel: #ffffff; --text: #1c2126; --muted: #5b6570;
+    --border: #d8dce1; --accent: #1f6feb; --accent-text: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 32px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  a.card {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 22px 20px; transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  a.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  a.card .title { font-size: 17px; font-weight: 700; margin-bottom: 8px; color: var(--accent); }
+  a.card .desc { font-size: 13.5px; color: var(--muted); }
+  a.card .badge {
+    display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+    text-transform: uppercase; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 8px; margin-top: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>Аналитика пилотов</h1>
+  <p class="sub">Выберите инструмент.</p>
+
+  <div class="grid">
+    <a class="card" href="index.html">
+      <div class="title">АБ-Тест параметры пилота</div>
+      <div class="desc">Загрузите список ИНН, задайте параметры пилота и получите сбалансированные группы КГ/ЦГ вместе с расчётом фин. эффекта.</div>
+      <span class="badge">Готово</span>
+    </a>
+
+    <a class="card" href="km_test.html">
+      <div class="title">Тест-параметры КМ</div>
+      <div class="desc">Исследования эффективности работы клиентских менеджеров, относительно заявленного плана.</div>
+      <span class="badge">В разработке</span>
+    </a>
+
+    <a class="card" href="target_group_picker.html">
+      <div class="title">Подбор Целевой группы для пилота</div>
+      <div class="desc">Заполните требования для выбора целевой группы для проведения пилота из метрик на выбор и мы поможем вам ее подобрать.</div>
+      <span class="badge">В разработке</span>
+    </a>
+  </div>
+</div>
+
+</body>
+</html>

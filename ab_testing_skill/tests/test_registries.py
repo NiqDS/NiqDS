@@ -1,12 +1,16 @@
 from datetime import date, timedelta
 
+import pytest
+
 from skill.models import PilotRequest
 from skill.registries import (
     DuplicatesRegistry,
+    InnStatusRegistry,
     InvolvedInnRecord,
     InvolvedInnsRegistry,
     OverlapRegistry,
     check_and_register,
+    check_master_status,
 )
 
 
@@ -18,6 +22,7 @@ def _request(**overrides):
         submitter_email="submitter@bank.internal",
         submitter_full_name="Submitter Name",
         recipient_emails=[],
+        analyst_email="analyst@bank.internal",
         expected_effect_pct=5.0,
         recalculation_frequency="week",
         grouping_metrics=["okved"],
@@ -108,3 +113,34 @@ def test_expired_pilot_membership_frees_the_inn(tmp_path):
     )
     assert available == ["4444444444"]
     assert blocked == []
+
+
+def test_inn_status_registry_defaults_unseen_inns_to_unused(tmp_path):
+    reg = InnStatusRegistry(tmp_path / "status.csv")
+    assert reg.status_of(["9999999999"]) == {"9999999999": "Unused"}
+
+
+def test_inn_status_registry_upsert_overwrites_previous_status(tmp_path):
+    reg = InnStatusRegistry(tmp_path / "status.csv")
+    reg.upsert_many({"1234567890": "Used"}, pilot_name="pilot_a")
+    assert reg.status_of(["1234567890"]) == {"1234567890": "Used"}
+    reg.upsert_many({"1234567890": "Used_as_cg"}, pilot_name="pilot_b")
+    assert reg.status_of(["1234567890"]) == {"1234567890": "Used_as_cg"}
+    # upsert must not duplicate rows
+    assert len(reg.load()) == 1
+
+
+def test_inn_status_registry_rejects_invalid_status(tmp_path):
+    reg = InnStatusRegistry(tmp_path / "status.csv")
+    with pytest.raises(ValueError):
+        reg.upsert_many({"1234567890": "Definitely_Not_A_Real_Status"}, pilot_name="pilot_a")
+
+
+def test_check_master_status_splits_available_and_blocked(tmp_path):
+    reg = InnStatusRegistry(tmp_path / "status.csv")
+    reg.upsert_many({"1111111111": "Used", "2222222222": "Used_as_cg"}, pilot_name="pilot_a")
+    available, blocked = check_master_status(
+        ["1111111111", "2222222222", "3333333333"], reg, blocking_statuses=("Used",)
+    )
+    assert available == ["2222222222", "3333333333"]
+    assert blocked == ["1111111111"]

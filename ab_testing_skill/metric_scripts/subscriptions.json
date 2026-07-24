@@ -1,0 +1,40 @@
+{
+  "_comment": "Data-source subscriptions, keyed by short alias. Add a subscription your metric scripts need here (name + real Hive/Spark table it points to), save the file, then reference it from a script via metric_scripts.subscriptions.get_subscription('alias'). Table names below are placeholders -- replace with your real internal table names; do not commit real internal table names to a public repo.",
+
+  "okved_reference": {
+    "table": "example_db.okved_reference",
+    "description": "Industry classification (OKVED) reference table, one row per INN."
+  },
+  "opf_reference": {
+    "table": "example_db.opf_reference",
+    "description": "Legal form (OPF) reference table, one row per INN."
+  },
+  "tb_reference": {
+    "table": "example_db.tb_reference",
+    "description": "Territorial bank (TB) assignment, one row per INN, partitioned by month."
+  },
+  "tenure_reference": {
+    "table": "example_db.tenure_reference",
+    "description": "Client tenure with the bank, one row per INN."
+  },
+  "chod_source": {
+    "table": "example_db.chod_monthly",
+    "description": "Net operating income (ЧОД) source table, one row per INN per month."
+  },
+  "chep_source": {
+    "table": "example_db.chep_monthly",
+    "description": "Net economic profit (ЧЭП) source table, one row per INN per month."
+  },
+  "turnover_source": {
+    "table": "example_db.turnover_monthly",
+    "description": "Account turnover source table, one row per INN per month."
+  },
+  "revenue_source": {
+    "table": "example_db.revenue_monthly",
+    "description": "Revenue source table, one row per INN per month."
+  },
+  "sdo_source": {
+    "table": "example_db.sdo_monthly",
+    "description": "СДО source table, one row per INN per month."
+  }
+}

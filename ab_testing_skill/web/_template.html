@@ -126,11 +126,10 @@
       <input type="number" id="expected_effect_pct" step="0.1" min="0" value="5" required>
 
       <label for="recalculation_frequency">Частота пересчёта фин. эффектов</label>
-      <select id="recalculation_frequency">
-        <option value="day">День</option>
-        <option value="week" selected>Неделя</option>
-        <option value="month">Месяц</option>
+      <select id="recalculation_frequency" disabled>
+        <option value="month" selected>Месяц</option>
       </select>
+      <p class="hint">Пересчёт фин. эффектов выполняется ежемесячно — единственный доступный режим.</p>
     </fieldset>
 
     <fieldset>
@@ -147,6 +146,9 @@
       </div>
       <label for="recipient_emails">Получатели файлов КГ/ЦГ (через запятую, необязательно — по умолчанию почта заказчика)</label>
       <input type="text" id="recipient_emails" placeholder="i.ivanov@bank.internal, team@bank.internal">
+      <label for="analyst_email">Почта аналитика пилотов</label>
+      <input type="email" id="analyst_email" required placeholder="analyst@bank.internal">
+      <p class="hint">Исходный список ИНН и параметры пилота (request.json) уходят только этому аналитику — до валидации и разбиения на группы.</p>
     </fieldset>
 
     <fieldset>
@@ -161,14 +163,16 @@
     </fieldset>
 
     <fieldset>
-      <legend>4. Атрибуты для разбиения КГ/ЦГ</legend>
+      <legend>4. Атрибуты для разбиения на КГ и ЦГ</legend>
+      <p class="hint">Отметьте галочками нужные метрики — можно выбрать несколько.</p>
       <div class="check-grid" id="grouping-metrics"></div>
       <label for="custom_metric_text" style="margin-top:14px;">Нужного атрибута нет в списке? Опишите его текстом (уйдёт в очередь разработке)</label>
       <textarea id="custom_metric_text" placeholder="Например: наличие зарплатного проекта"></textarea>
     </fieldset>
 
     <fieldset>
-      <legend>5. Статьи для расчёта фин. эффекта пилота</legend>
+      <legend>5. Статьи расчета фин. эффекта пилота</legend>
+      <p class="hint">Отметьте галочками нужные метрики — можно выбрать несколько.</p>
       <div class="check-grid" id="financial-metrics"></div>
       <p class="hint">Эти же метрики используются агентом при периодическом пересчёте (шаг 6) для дэшборда в Навигаторе.</p>
     </fieldset>
@@ -286,6 +290,7 @@
       submitter_email: document.getElementById('submitter_email').value.trim(),
       submitter_full_name: document.getElementById('submitter_full_name').value.trim(),
       recipient_emails: recipientsRaw ? recipientsRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
+      analyst_email: document.getElementById('analyst_email').value.trim(),
       expected_effect_pct: parseFloat(document.getElementById('expected_effect_pct').value || '0'),
       recalculation_frequency: document.getElementById('recalculation_frequency').value,
       grouping_metrics: checkedCodes('grouping'),
