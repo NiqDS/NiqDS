@@ -248,9 +248,17 @@ clarification round:
   official FNS control-digit checksum (10-digit legal entities, 12-digit
   individuals) as an extra layer — toggle off via `strict_inn_checksum=False`
   in `run_intake()` if the business only wants the literal spec check.
-- **A fully malformed submission blocks the whole file**, not just the bad
-  rows (`IntakeRejected`), matching "агент пишет заказчику с просьбой
-  переделать входной файл в нужном формате" read literally.
+- **A fully malformed submission blocks the whole file by default**, not
+  just the bad rows (`IntakeRejected`), matching "агент пишет заказчику с
+  просьбой переделать входной файл в нужном формате" read literally. For
+  cases where you'd rather drop the bad rows and split the rest instead of
+  failing the whole run, `python -m skill.cli run` takes an opt-in
+  `--drop-invalid-inns` flag: it runs step-1 validation up front, writes
+  the surviving INNs to `<inn-file stem>_cleaned.csv`, prints what got
+  dropped and why, and runs the split on what's left (see
+  `skill/cli.py:_drop_invalid_inns`). `run_intake()` itself is unchanged —
+  this is a CLI-level convenience, not a change to the library's default
+  behavior.
 - **`metric_requests` backlog table** (step 3's "нужной проверки нет ...
   высылается команде разработки") isn't one of the spec's 3 prerequisite
   tables; added as a 4th CSV so requests are queryable instead of a

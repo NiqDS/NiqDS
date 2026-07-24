@@ -1,6 +1,7 @@
 """Command-line entry point.
 
     python -m skill.cli run --request request.json --inn-file inns.csv
+    python -m skill.cli run --request request.json --inn-file inns.csv --drop-invalid-inns
     python -m skill.cli recalc --pilot-folder data/pilots/<slug>
     python -m skill.cli metrics [--usable-as grouping|financial_effect]
 
@@ -8,10 +9,17 @@
 `recalc` is what a scheduler calls on the configured cadence (spec step 6).
 Both print a JSON result to stdout so a GigaCode tool wrapper can shell out
 to this CLI and parse the response without needing a Python import.
+
+By default `run` still rejects the whole file if any INN fails step-1
+validation (format/checksum) -- see IntakeRejected in pipeline.py and the
+README's "Assumptions" section for why. `--drop-invalid-inns` opts into a
+looser mode: bad rows are filtered out and the split runs on whatever
+INNs remain, instead of failing the submission outright.
 """
 from __future__ import annotations
 
 import argparse
+import csv
 import dataclasses
 import json
 import sys
@@ -19,6 +27,7 @@ from datetime import date
 from pathlib import Path
 
 from .config import default_config
+from .inn_utils import validate_file
 from .metrics.runner import MetricRunner
 from .models import PilotRequest
 from .monitoring import run_recalculation
@@ -35,12 +44,54 @@ def _json_default(obj):
     raise TypeError(f"not JSON serializable: {type(obj)}")
 
 
+def _drop_invalid_inns(inn_file: Path, strict_inn_checksum: bool = True):
+    """Filters `inn_file` down to the INNs that pass step-1 validation
+
+    (format + optionally the FNS checksum). Writes the survivors to a new
+    file next to the original (`<stem>_cleaned.csv`) so the split can run
+    on the INNs that remain, instead of `run_intake` rejecting the whole
+    submission over a handful of bad rows. Returns (cleaned_path, result)
+    where `result` is the full ValidationResult, still carrying which rows
+    were dropped and why, so the caller can report it.
+    """
+    result = validate_file(inn_file, check_control_digits=strict_inn_checksum)
+    cleaned_path = inn_file.with_name(f"{inn_file.stem}_cleaned{inn_file.suffix}")
+    with open(cleaned_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["inn"])
+        writer.writerows([[inn] for inn in result.valid_inns])
+    return cleaned_path, result
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     request_data = json.loads(Path(args.request).read_text(encoding="utf-8"))
     request = PilotRequest.from_dict(request_data)
     config = default_config()
+    inn_file = Path(args.inn_file)
+
+    if args.drop_invalid_inns:
+        inn_file, validation = _drop_invalid_inns(inn_file)
+        if validation.issues:
+            print(
+                json.dumps(
+                    {
+                        "status": "invalid_inns_dropped",
+                        "dropped_count": len(validation.issues),
+                        "remaining_count": len(validation.valid_inns),
+                        "dropped": [dataclasses.asdict(i) for i in validation.issues],
+                        "cleaned_file": str(inn_file),
+                    },
+                    default=_json_default,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        if not validation.valid_inns:
+            print(json.dumps({"status": "no_valid_inns_remaining"}, indent=2))
+            return 1
+
     try:
-        result = run_intake(request, Path(args.inn_file), config=config)
+        result = run_intake(request, inn_file, config=config)
     except IntakeRejected as exc:
         print(
             json.dumps(
@@ -98,6 +149,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_run = sub.add_parser("run", help="Run intake steps 1-5 for a new pilot request")
     p_run.add_argument("--request", required=True, help="Path to request JSON (see web/index.html)")
     p_run.add_argument("--inn-file", required=True, help="Path to the submitted INN list CSV")
+    p_run.add_argument(
+        "--drop-invalid-inns",
+        action="store_true",
+        help=(
+            "Drop INNs that fail step-1 validation (bad format/checksum) instead of "
+            "rejecting the whole file, and run the split on the remaining valid INNs. "
+            "Writes the filtered list to <inn-file stem>_cleaned.csv."
+        ),
+    )
     p_run.set_defaults(func=_cmd_run)
 
     p_recalc = sub.add_parser("recalc", help="Run one recalculation pass for an existing pilot")
