@@ -144,3 +144,59 @@ def test_check_master_status_splits_available_and_blocked(tmp_path):
     )
     assert available == ["2222222222", "3333333333"]
     assert blocked == ["1111111111"]
+
+
+def test_append_many_assigns_sequential_no_and_matches_looped_append(tmp_path):
+    involved = InvolvedInnsRegistry(tmp_path / "involved.csv")
+    records = [
+        InvolvedInnRecord(
+            no=0, inn=str(i), role="tg", pilot_name="p", valid_from="2026-01-01",
+            valid_to="2026-12-31", email_submitter="a@b.c", report_date="2026-01-01",
+        )
+        for i in range(5)
+    ]
+    involved.append_many(records)
+    loaded = involved.load()
+    # CSV round-trips everything as strings, matching load()'s existing behavior elsewhere
+    assert [r.no for r in loaded] == ["1", "2", "3", "4", "5"]
+    assert [r.inn for r in loaded] == [str(i) for i in range(5)]
+
+    # a second batch continues numbering from where the first left off
+    involved.append_many(
+        [InvolvedInnRecord(no=0, inn="99", role="cg", pilot_name="p", valid_from="2026-01-01",
+                            valid_to="2026-12-31", email_submitter="a@b.c", report_date="2026-01-01")]
+    )
+    assert involved.load()[-1].no == "6"
+
+
+def test_append_many_opens_the_file_once_regardless_of_record_count(tmp_path, monkeypatch):
+    """Regression test: append() used to be called once per INN inside
+
+    check_and_register's loop, each call doing its own open()/close() pair
+    (one to count existing rows, one to write) -- on a network filesystem
+    that turned a batch of a few hundred INNs into hundreds of round trips
+    slow enough to look like a hang. append_many() must do a small,
+    constant number of opens no matter how many records are passed.
+    """
+    import builtins
+
+    involved = InvolvedInnsRegistry(tmp_path / "involved.csv")
+    open_calls = []
+    real_open = builtins.open
+
+    def counting_open(*args, **kwargs):
+        open_calls.append(args[0])
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", counting_open)
+    records = [
+        InvolvedInnRecord(
+            no=0, inn=str(i), role="tg", pilot_name="p", valid_from="2026-01-01",
+            valid_to="2026-12-31", email_submitter="a@b.c", report_date="2026-01-01",
+        )
+        for i in range(200)
+    ]
+    involved.append_many(records)
+    # exactly 2 opens: one to compute the starting `no`, one to write all 200 rows --
+    # NOT 400 (one open per record, the old per-INN append() pattern).
+    assert len(open_calls) == 2

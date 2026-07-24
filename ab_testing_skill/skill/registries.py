@@ -88,11 +88,28 @@ class _CsvRegistry:
             return [self.record_cls(**row) for row in reader]
 
     def append(self, record) -> None:
+        self.append_many([record])
+
+    def append_many(self, records: list) -> None:
+        """Batch version of append(): computes the starting `no` once and
+
+        writes every record through a single open()/close(), instead of
+        one open()/close() pair per record. Matters a lot on network
+        filesystems (NFS, common on internal DataLab-style environments)
+        where each open() is a round trip -- a loop calling append() once
+        per INN in a batch of a few hundred/thousand can turn a sub-second
+        write into something that looks like a hang. See
+        check_and_register()'s use of this for the motivating case.
+        """
+        if not records:
+            return
         no = _next_no(self.path)
-        record.no = no
         with open(self.path, "a", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=[f.name for f in fields(self.record_cls)])
-            writer.writerow(asdict(record))
+            for record in records:
+                record.no = no
+                writer.writerow(asdict(record))
+                no += 1
 
 
 class InvolvedInnsRegistry(_CsvRegistry):
@@ -167,7 +184,9 @@ def check_and_register(
 
     Returns (available_inns, blocked_findings) and has the side effect of
     appending new INNs to `involved`, logging conflicts to `duplicates` and
-    `overlap`.
+    `overlap`. Writes are batched (one open()/close() per table, not one
+    per INN) -- with hundreds/thousands of INNs on a network filesystem,
+    a per-INN open() loop can take long enough to look like a hang.
     """
     from .models import OverlapFinding  # local import to avoid a cycle
 
@@ -180,6 +199,10 @@ def check_and_register(
     blocked: list[OverlapFinding] = []
     report_date = date.today().isoformat()
 
+    new_involved_records: list[InvolvedInnRecord] = []
+    new_duplicate_records: list[DuplicateRecord] = []
+    new_overlap_records: list[OverlapRecord] = []
+
     for inn in inn_list:
         records = existing_by_inn.get(inn, [])
         conflict_records = [
@@ -189,7 +212,7 @@ def check_and_register(
         ]
         if not conflict_records:
             available.append(inn)
-            involved.append(
+            new_involved_records.append(
                 InvolvedInnRecord(
                     no=0,
                     inn=inn,
@@ -208,7 +231,7 @@ def check_and_register(
             if require_metric_overlap and not overlapping:
                 continue
             action, suggestion = suggest_resolution(overlapping, request.financial_effect_articles)
-            duplicates.append(
+            new_duplicate_records.append(
                 DuplicateRecord(
                     no=0,
                     inn=inn,
@@ -220,7 +243,7 @@ def check_and_register(
                     report_date=report_date,
                 )
             )
-            overlap.append(
+            new_overlap_records.append(
                 OverlapRecord(
                     no=0,
                     inn=inn,
@@ -242,6 +265,10 @@ def check_and_register(
                     suggestion=f"{action}: {suggestion}",
                 )
             )
+
+    involved.append_many(new_involved_records)
+    duplicates.append_many(new_duplicate_records)
+    overlap.append_many(new_overlap_records)
 
     return available, blocked
 

@@ -171,16 +171,19 @@ def run_intake(
     # --- Step 3: log any custom-metric requests to the dev backlog -------
     if request.custom_metric_requests:
         metric_requests = MetricRequestsRegistry(config.registry.metric_requests_path)
-        for text in request.custom_metric_requests:
-            metric_requests.append(
+        today_str = date.today().isoformat()
+        metric_requests.append_many(
+            [
                 MetricRequestRecord(
                     no=0,
                     metric_text=text,
                     requested_by=request.submitter_email,
                     pilot_name=request.pilot_name,
-                    report_date=date.today().isoformat(),
+                    report_date=today_str,
                 )
-            )
+                for text in request.custom_metric_requests
+            ]
+        )
 
     # --- Step 4: compute grouping attributes, split, export, notify ------
     runner = MetricRunner(config.metrics)
