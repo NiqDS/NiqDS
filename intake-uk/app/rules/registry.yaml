@@ -1,0 +1,147 @@
+# Rule metadata — single source of truth for severity and client-facing message.
+#
+# Messages are client-safe: they are pasted straight into the chase email.
+# No internal jargon, no rule IDs in the client-facing text.
+#
+# Placeholders in {curly braces} are filled by the rule function via make_flag().
+
+# ---------------------------------------------------------------------------
+# Format checks
+# ---------------------------------------------------------------------------
+- id: FMT-VAT-001
+  name: VAT registration number fails check digit
+  severity: BLOCK
+  scope: document
+  message: "The VAT number on {supplier_name}'s invoice ({evidence}) isn't a valid UK VAT number. Please check and resend."
+
+- id: FMT-DATE-001
+  name: Document date missing or unparseable
+  severity: BLOCK
+  scope: document
+  message: "We couldn't read a valid date on the document from {supplier_name}. Please confirm the date and resend."
+
+- id: FMT-DATE-002
+  name: Ambiguous day/month date
+  severity: WARN
+  scope: document
+  message: "The date on {supplier_name}'s document ({evidence}) could be read two ways. Please confirm the exact date."
+
+- id: FMT-CUR-001
+  name: Currency is not GBP
+  severity: WARN
+  scope: document
+  message: "The document from {supplier_name} is in {evidence}, not GBP. Please confirm the amount in sterling if applicable."
+
+- id: FMT-POST-001
+  name: Postcode present but malformed
+  severity: WARN
+  scope: document
+  message: "The postcode on {supplier_name}'s document ({evidence}) doesn't look right. Please check it."
+
+- id: FMT-SORT-001
+  name: Sort code not 6 digits
+  severity: BLOCK
+  scope: document
+  message: "The sort code on the statement ({evidence}) isn't a valid 6-digit sort code. Please resend the correct statement."
+
+- id: FMT-ACCT-001
+  name: Account number not 8 digits
+  severity: BLOCK
+  scope: document
+  message: "The account number on the statement ({evidence}) isn't a valid 8-digit account number. Please resend the correct statement."
+
+- id: FMT-SUPP-001
+  name: Supplier name absent or too short
+  severity: BLOCK
+  scope: document
+  message: "We couldn't read the supplier name on one of the documents. Please resend a clearer copy."
+
+- id: FMT-LEGIB-001
+  name: Scan too unclear to read
+  severity: BLOCK
+  scope: document
+  message: "This scan is too unclear to read — please resend a clearer photo."
+
+# ---------------------------------------------------------------------------
+# Arithmetic checks
+# ---------------------------------------------------------------------------
+- id: ARI-VAT-001
+  name: Net + VAT does not equal gross
+  severity: BLOCK
+  scope: document
+  message: "The totals on {supplier_name}'s invoice don't add up (net plus VAT doesn't equal the gross of {evidence}). Please check and resend."
+
+- id: ARI-LINE-001
+  name: Sum of line nets does not equal document net
+  severity: BLOCK
+  scope: document
+  message: "The line items on {supplier_name}'s invoice don't add up to the net total ({evidence}). Please check and resend."
+
+- id: ARI-RATE-001
+  name: Implied VAT rate not a standard rate
+  severity: WARN
+  scope: document
+  message: "The VAT rate on {supplier_name}'s invoice works out at {evidence}, which isn't a standard UK rate. Please confirm."
+
+- id: ARI-NEG-001
+  name: Negative gross on an invoice
+  severity: WARN
+  scope: document
+  message: "The invoice from {supplier_name} has a negative total ({evidence}) — this may be a credit note. Please confirm."
+
+# ---------------------------------------------------------------------------
+# Temporal checks
+# ---------------------------------------------------------------------------
+- id: TMP-PERIOD-001
+  name: Document date outside declared period
+  severity: BLOCK
+  scope: document
+  message: "The document from {supplier_name} dated {evidence} falls outside this period ({period}). Could you confirm which period it belongs to?"
+
+- id: TMP-FUTURE-001
+  name: Document dated in the future
+  severity: BLOCK
+  scope: document
+  message: "The document from {supplier_name} is dated {evidence}, which is in the future. Please check the date and resend."
+
+- id: TMP-STALE-001
+  name: Document more than 24 months old
+  severity: WARN
+  scope: document
+  message: "The document from {supplier_name} dated {evidence} is more than two years old — please confirm it belongs in this bundle."
+
+# ---------------------------------------------------------------------------
+# Bundle-level / set checks
+# ---------------------------------------------------------------------------
+- id: SET-STMT-001
+  name: Bank statement period gap
+  severity: BLOCK
+  scope: bundle
+  message: "A bank statement is missing: we have no cover for {evidence} on the account ending {account}."
+
+- id: SET-ACCT-001
+  name: Expected account has no documents
+  severity: BLOCK
+  scope: bundle
+  message: "We didn't receive any statements for the account ending {evidence}. Please send them so we can reconcile."
+
+- id: SET-DUP-001
+  name: Probable duplicate document
+  severity: WARN
+  scope: bundle
+  message: "The document from {supplier_name} ({evidence}) looks like it was sent twice. Please confirm it isn't a duplicate."
+
+- id: SET-EMPTY-001
+  name: Missing a document type the client usually submits
+  severity: WARN
+  scope: bundle
+  message: "We usually receive {evidence} from you but none arrived this time. Please confirm there were none."
+
+# ---------------------------------------------------------------------------
+# Classification
+# ---------------------------------------------------------------------------
+- id: CLS-TYPE-001
+  name: Document type could not be identified
+  severity: WARN
+  scope: document
+  message: "We couldn't tell what one of the documents was ({evidence}). Please confirm what it is or whether it belongs here."

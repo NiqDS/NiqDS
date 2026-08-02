@@ -1,0 +1,16 @@
+{
+  "source_file": "05_illegible_receipt.pdf",
+  "doc_type": "RECEIPT",
+  "confidence": 0.25,
+  "supplier_name": "Cafe Nero",
+  "supplier_vat_number": null,
+  "customer_name": null,
+  "document_number": null,
+  "document_date": "2026-02-15",
+  "net_total": null,
+  "vat_total": null,
+  "gross_total": null,
+  "line_items": [],
+  "raw_text_excerpt": "blurry receipt scan, approx total around 4.20 but hard to read",
+  "page_count": 1
+}

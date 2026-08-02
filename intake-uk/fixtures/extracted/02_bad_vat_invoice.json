@@ -1,0 +1,42 @@
+{
+  "source_file": "02_bad_vat_invoice.pdf",
+  "doc_type": "PURCHASE_INVOICE",
+  "confidence": 0.95,
+  "supplier_name": "Ridgeway Ltd",
+  "supplier_vat_number": "917126932",
+  "customer_name": "Northgate Joinery Ltd",
+  "document_number": "INV-1002",
+  "document_date": "2026-02-20",
+  "net_total": {
+    "amount": "100.00",
+    "currency": "GBP"
+  },
+  "vat_total": {
+    "amount": "20.00",
+    "currency": "GBP"
+  },
+  "gross_total": {
+    "amount": "120.00",
+    "currency": "GBP"
+  },
+  "line_items": [
+    {
+      "description": "Consulting",
+      "net": {
+        "amount": "100.00",
+        "currency": "GBP"
+      },
+      "vat_rate": "20",
+      "vat": {
+        "amount": "20.00",
+        "currency": "GBP"
+      },
+      "gross": {
+        "amount": "120.00",
+        "currency": "GBP"
+      }
+    }
+  ],
+  "raw_text_excerpt": "Ridgeway Ltd VAT No 917 126 932 Invoice INV-1002 Invoice date: 20 February 2026 Net 100.00 VAT 20.00 Total 120.00",
+  "page_count": 1
+}

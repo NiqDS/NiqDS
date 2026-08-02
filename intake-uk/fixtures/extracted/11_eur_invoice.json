@@ -1,0 +1,42 @@
+{
+  "source_file": "11_eur_invoice.pdf",
+  "doc_type": "PURCHASE_INVOICE",
+  "confidence": 0.95,
+  "supplier_name": "Bruges Foods NV",
+  "supplier_vat_number": null,
+  "customer_name": "Northgate Joinery Ltd",
+  "document_number": "INV-9001",
+  "document_date": "2026-02-20",
+  "net_total": {
+    "amount": "100.00",
+    "currency": "EUR"
+  },
+  "vat_total": {
+    "amount": "20.00",
+    "currency": "EUR"
+  },
+  "gross_total": {
+    "amount": "120.00",
+    "currency": "EUR"
+  },
+  "line_items": [
+    {
+      "description": "Chocolate",
+      "net": {
+        "amount": "100.00",
+        "currency": "EUR"
+      },
+      "vat_rate": "20",
+      "vat": {
+        "amount": "20.00",
+        "currency": "EUR"
+      },
+      "gross": {
+        "amount": "120.00",
+        "currency": "EUR"
+      }
+    }
+  ],
+  "raw_text_excerpt": "Bruges Foods NV Facture INV-9001 Date: 20 February 2026 Net EUR 100.00 TVA 20.00 Total EUR 120.00",
+  "page_count": 1
+}

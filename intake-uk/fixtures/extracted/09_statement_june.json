@@ -1,0 +1,19 @@
+{
+  "source_file": "09_statement_june.pdf",
+  "doc_type": "BANK_STATEMENT",
+  "confidence": 0.94,
+  "supplier_name": null,
+  "supplier_vat_number": null,
+  "customer_name": "Harbourside Ltd",
+  "document_number": null,
+  "document_date": null,
+  "period_start": "2026-06-01",
+  "period_end": "2026-06-30",
+  "net_total": null,
+  "vat_total": null,
+  "gross_total": null,
+  "line_items": [],
+  "account_identifier": "12344471",
+  "raw_text_excerpt": "Barclays Bank plc statement account 12344471 statement period June 2026",
+  "page_count": 2
+}

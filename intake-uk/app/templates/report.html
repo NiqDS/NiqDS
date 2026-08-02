@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Report · {{ bundle.bundle_id }}{% endblock %}
+{% block content %}
+<h1>Gap report &amp; chase</h1>
+<p class="muted">{{ bundle.client_name }} · {{ bundle.bundle_id }}
+  · <a href="/bundle/{{ bundle.bundle_id }}">back to bundle</a></p>
+
+<div class="card"><p class="summary">{{ report.summary }}</p></div>
+
+<div class="split">
+  <div class="card">
+    <h2>Gap report</h2>
+    {% set any_flag = false %}
+    {% for dr in report.documents %}
+      {% if dr.flags %}
+        {% set any_flag = true %}
+        <p style="font-weight:600; margin:14px 0 4px;">{{ dr.source_file }}</p>
+        {% for f in dr.flags %}
+        <div class="flag">
+          <span class="badge {{ severity_class[f.severity] }}">{{ f.severity }}</span>
+          <span class="rid">{{ f.rule_id }}</span>{% if f.evidence %} · <span class="ev">{{ f.evidence }}</span>{% endif %}
+          <div>{{ f.message }}</div>
+        </div>
+        {% endfor %}
+      {% endif %}
+    {% endfor %}
+    {% if report.bundle_flags %}
+      <p style="font-weight:600; margin:14px 0 4px;">Bundle-level</p>
+      {% for f in report.bundle_flags %}
+      <div class="flag">
+        <span class="badge {{ severity_class[f.severity] }}">{{ f.severity }}</span>
+        <span class="rid">{{ f.rule_id }}</span>{% if f.evidence %} · <span class="ev">{{ f.evidence }}</span>{% endif %}
+        <div>{{ f.message }}</div>
+      </div>
+      {% endfor %}
+    {% endif %}
+    {% if not any_flag and not report.bundle_flags %}
+      <p class="muted">Nothing flagged — this bundle is clean.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Chase message <button class="btn secondary" style="float:right; padding:6px 12px;"
+        onclick="navigator.clipboard.writeText(document.getElementById('chase').innerText)">Copy</button></h2>
+    {% if chase.items %}
+      <pre class="chase" id="chase">{{ chase.text }}</pre>
+    {% else %}
+      <p class="muted">No blocking issues — no chase message needed. You can release this bundle.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{
+  "source_file": "10_duplicate_invoice.pdf",
+  "doc_type": "PURCHASE_INVOICE",
+  "confidence": 0.96,
+  "supplier_name": "Hartley Supplies Ltd",
+  "supplier_vat_number": "197126932",
+  "customer_name": "Northgate Joinery Ltd",
+  "document_number": "INV-1001",
+  "document_date": "2026-02-20",
+  "net_total": {
+    "amount": "100.00",
+    "currency": "GBP"
+  },
+  "vat_total": {
+    "amount": "20.00",
+    "currency": "GBP"
+  },
+  "gross_total": {
+    "amount": "120.00",
+    "currency": "GBP"
+  },
+  "line_items": [
+    {
+      "description": "Timber",
+      "net": {
+        "amount": "60.00",
+        "currency": "GBP"
+      },
+      "vat_rate": "20",
+      "vat": {
+        "amount": "12.00",
+        "currency": "GBP"
+      },
+      "gross": {
+        "amount": "72.00",
+        "currency": "GBP"
+      }
+    },
+    {
+      "description": "Fixings",
+      "net": {
+        "amount": "40.00",
+        "currency": "GBP"
+      },
+      "vat_rate": "20",
+      "vat": {
+        "amount": "8.00",
+        "currency": "GBP"
+      },
+      "gross": {
+        "amount": "48.00",
+        "currency": "GBP"
+      }
+    }
+  ],
+  "raw_text_excerpt": "Hartley Supplies Ltd VAT No 197 126 932 Invoice INV-1001 Invoice date: 20 February 2026 Net 100.00 VAT 20.00 Total 120.00 (resent)",
+  "page_count": 1
+}

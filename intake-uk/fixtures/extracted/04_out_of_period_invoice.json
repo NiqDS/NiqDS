@@ -1,0 +1,42 @@
+{
+  "source_file": "04_out_of_period_invoice.pdf",
+  "doc_type": "PURCHASE_INVOICE",
+  "confidence": 0.95,
+  "supplier_name": "Oakwood Trading Ltd",
+  "supplier_vat_number": "956341605",
+  "customer_name": "Northgate Joinery Ltd",
+  "document_number": "INV-1004",
+  "document_date": "2026-04-03",
+  "net_total": {
+    "amount": "50.00",
+    "currency": "GBP"
+  },
+  "vat_total": {
+    "amount": "10.00",
+    "currency": "GBP"
+  },
+  "gross_total": {
+    "amount": "60.00",
+    "currency": "GBP"
+  },
+  "line_items": [
+    {
+      "description": "Paint",
+      "net": {
+        "amount": "50.00",
+        "currency": "GBP"
+      },
+      "vat_rate": "20",
+      "vat": {
+        "amount": "10.00",
+        "currency": "GBP"
+      },
+      "gross": {
+        "amount": "60.00",
+        "currency": "GBP"
+      }
+    }
+  ],
+  "raw_text_excerpt": "Oakwood Trading Ltd VAT No 956 341 605 Invoice INV-1004 Invoice date: 3 April 2026 Net 50.00 VAT 10.00 Total 60.00",
+  "page_count": 1
+}

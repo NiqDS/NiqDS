@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>New intake bundle</h1>
+<p class="muted">Drop a folder of client documents, set the period, and see exactly what's missing or wrong.</p>
+
+<div class="card">
+  <form action="/upload" method="post" enctype="multipart/form-data">
+    <label for="client_name">Client name</label>
+    <input type="text" id="client_name" name="client_name" required placeholder="e.g. Northgate Joinery Ltd">
+
+    <div class="grid2">
+      <div>
+        <label for="declared_period_start">Period start</label>
+        <input type="date" id="declared_period_start" name="declared_period_start" required>
+      </div>
+      <div>
+        <label for="declared_period_end">Period end</label>
+        <input type="date" id="declared_period_end" name="declared_period_end" required>
+      </div>
+    </div>
+
+    <label for="expected_accounts">Expected bank accounts <span class="muted">(optional, comma-separated)</span></label>
+    <input type="text" id="expected_accounts" name="expected_accounts" placeholder="12344471, 99995555">
+
+    <label for="files">Documents</label>
+    <input type="file" id="files" name="files" multiple webkitdirectory>
+    <p class="muted" style="font-size:12px;">Select a whole folder, or hold ⌘/Ctrl to pick multiple PDFs/images.</p>
+
+    <p style="margin-top:16px;"><button class="btn" type="submit">Run intake gate →</button></p>
+  </form>
+</div>
+
+<div class="card">
+  <h2>No files handy? Load a demo bundle</h2>
+  <p class="muted">Runs the shipped fixtures through the same engine — offline, no API key.</p>
+  <form action="/demo" method="post" style="display:flex; gap:10px; align-items:center;">
+    <select name="scenario" style="padding:9px 10px; border:1px solid var(--line); border-radius:8px;">
+      {% for s in scenarios %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+    <button class="btn secondary" type="submit">Load demo</button>
+  </form>
+</div>
+
+{% if bundles %}
+<div class="card">
+  <h2>Recent bundles</h2>
+  <table>
+    <thead><tr><th>Bundle</th><th>Client</th><th>Created (UTC)</th></tr></thead>
+    <tbody>
+      {% for b in bundles %}
+      <tr>
+        <td><a href="/bundle/{{ b.bundle_id }}">{{ b.bundle_id }}</a></td>
+        <td>{{ b.client_name }}</td>
+        <td class="muted">{{ b.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

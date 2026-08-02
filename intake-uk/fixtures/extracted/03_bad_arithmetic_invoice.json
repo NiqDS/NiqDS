@@ -1,0 +1,58 @@
+{
+  "source_file": "03_bad_arithmetic_invoice.pdf",
+  "doc_type": "PURCHASE_INVOICE",
+  "confidence": 0.95,
+  "supplier_name": "Miller & Sons",
+  "supplier_vat_number": "427472780",
+  "customer_name": "Northgate Joinery Ltd",
+  "document_number": "INV-1003",
+  "document_date": "2026-02-20",
+  "net_total": {
+    "amount": "200.00",
+    "currency": "GBP"
+  },
+  "vat_total": {
+    "amount": "40.00",
+    "currency": "GBP"
+  },
+  "gross_total": {
+    "amount": "241.20",
+    "currency": "GBP"
+  },
+  "line_items": [
+    {
+      "description": "Materials",
+      "net": {
+        "amount": "120.00",
+        "currency": "GBP"
+      },
+      "vat_rate": "20",
+      "vat": {
+        "amount": "24.00",
+        "currency": "GBP"
+      },
+      "gross": {
+        "amount": "144.00",
+        "currency": "GBP"
+      }
+    },
+    {
+      "description": "Labour",
+      "net": {
+        "amount": "80.00",
+        "currency": "GBP"
+      },
+      "vat_rate": "20",
+      "vat": {
+        "amount": "16.00",
+        "currency": "GBP"
+      },
+      "gross": {
+        "amount": "96.00",
+        "currency": "GBP"
+      }
+    }
+  ],
+  "raw_text_excerpt": "Miller & Sons VAT No 427 472 780 Invoice INV-1003 Invoice date: 20 February 2026 Net 200.00 VAT 40.00 Total 241.20",
+  "page_count": 1
+}

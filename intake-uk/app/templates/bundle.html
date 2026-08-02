@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ bundle.bundle_id }} · Intake Gate{% endblock %}
+{% block content %}
+<h1>{{ bundle.client_name }}</h1>
+<p class="muted">
+  {{ bundle.bundle_id }} · period {{ bundle.declared_period_start.strftime("%-d %b %Y") }}
+  – {{ bundle.declared_period_end.strftime("%-d %b %Y") }}
+  {% if bundle.expected_accounts %}· expected accounts: {{ bundle.expected_accounts | join(", ") }}{% endif %}
+</p>
+
+<div class="card">
+  <p class="summary">{{ report.summary }}</p>
+  <p><a class="btn" href="/bundle/{{ bundle.bundle_id }}/report">View gap report &amp; chase message →</a></p>
+</div>
+
+<div class="card">
+  <h2>Documents</h2>
+  <table>
+    <thead>
+      <tr><th>Status</th><th>File</th><th>Type</th><th>Supplier</th><th>Date</th><th>Gross</th><th>Flags</th></tr>
+    </thead>
+    <tbody>
+      {% for doc in bundle.documents %}
+      {% set dr = doc_reports.get(doc.source_file) %}
+      {% set cls = "clean" if dr.passed else "block" %}
+      {% set has_warn = dr.flags | selectattr("severity", "equalto", "WARN") | list | length %}
+      {% set rowcls = "block" if not dr.passed else ("warn" if has_warn else "clean") %}
+      <tr class="rowline {{ rowcls }}">
+        <td>
+          {% if not dr.passed %}<span class="badge block">BLOCK</span>
+          {% elif has_warn %}<span class="badge warn">WARN</span>
+          {% else %}<span class="badge clean">OK</span>{% endif %}
+        </td>
+        <td>{{ doc.source_file }}</td>
+        <td>{{ doc.doc_type.value }}</td>
+        <td>{{ doc.supplier_name or "—" }}</td>
+        <td>{{ doc.document_date.strftime("%-d %b %Y") if doc.document_date else ("period" if doc.period_start else "—") }}</td>
+        <td>{{ ("£" ~ doc.gross_total.amount) if doc.gross_total else "—" }}</td>
+        <td>
+          {% if dr.flags %}
+            {% for f in dr.flags %}
+            <div class="flag">
+              <span class="badge {{ severity_class[f.severity] }}">{{ f.severity }}</span>
+              <span class="rid">{{ f.rule_id }}</span>{% if f.evidence %} · <span class="ev">{{ f.evidence }}</span>{% endif %}
+              <div>{{ f.message }}</div>
+            </div>
+            {% endfor %}
+          {% else %}<span class="muted">clean</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if report.bundle_flags %}
+<div class="card">
+  <h2>Bundle-level issues</h2>
+  {% for f in report.bundle_flags %}
+  <div class="flag">
+    <span class="badge {{ severity_class[f.severity] }}">{{ f.severity }}</span>
+    <span class="rid">{{ f.rule_id }}</span>{% if f.evidence %} · <span class="ev">{{ f.evidence }}</span>{% endif %}
+    <div>{{ f.message }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Intake Gate (UK){% endblock %}</title>
+  <style>
+    :root {
+      --block: #c0392b; --warn: #b8860b; --clean: #1e8449; --ink: #1c2733;
+      --muted: #6b7785; --line: #e3e8ee; --bg: #f6f8fa;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+           margin: 0; color: var(--ink); background: var(--bg); }
+    header { background: #10212f; color: #fff; padding: 16px 28px; }
+    header a { color: #cfe3f2; text-decoration: none; }
+    header .brand { font-weight: 700; font-size: 18px; letter-spacing: .3px; }
+    main { max-width: 1080px; margin: 24px auto; padding: 0 20px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    h2 { font-size: 16px; margin: 24px 0 10px; }
+    .muted { color: var(--muted); }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 10px;
+            padding: 18px 20px; margin-bottom: 18px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px;
+             font-weight: 700; color: #fff; }
+    .badge.block { background: var(--block); }
+    .badge.warn  { background: var(--warn); }
+    .badge.info  { background: var(--muted); }
+    .badge.clean { background: var(--clean); }
+    .rowline.block td:first-child { border-left: 3px solid var(--block); }
+    .rowline.warn  td:first-child { border-left: 3px solid var(--warn); }
+    .rowline.clean td:first-child { border-left: 3px solid var(--clean); }
+    .flag { margin: 6px 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); }
+    .flag .rid { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--muted); }
+    .flag .ev { font-family: ui-monospace, Menlo, monospace; background:#eef2f6; padding:1px 5px; border-radius:4px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 4px; }
+    input[type=text], input[type=date], textarea {
+      width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .btn { display: inline-block; background: #1f6feb; color: #fff; border: none; border-radius: 8px;
+           padding: 10px 16px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; }
+    .btn.secondary { background: #33475b; }
+    .summary { font-size: 15px; font-weight: 600; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    pre.chase { white-space: pre-wrap; font-family: ui-monospace, Menlo, monospace; font-size: 13px;
+                background: var(--bg); padding: 14px; border-radius: 8px; border: 1px solid var(--line); }
+    @media (max-width: 780px) { .split, .grid2 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/"><span class="brand">Intake Gate · UK</span></a>
+    <span class="muted" style="float:right; color:#8fa6b8;">model extracts · code validates</span>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>

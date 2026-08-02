@@ -1,0 +1,6 @@
+# Optional real LLM backends. Install one of these only when you switch
+# LLM_BACKEND away from the default `mock`:
+#   pip install -r requirements-optional.txt
+# The adapter imports these lazily, so the app runs offline without them.
+anthropic>=0.39
+openai>=1.30

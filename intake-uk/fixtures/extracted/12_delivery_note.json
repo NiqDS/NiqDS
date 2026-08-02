@@ -1,0 +1,16 @@
+{
+  "source_file": "12_delivery_note.pdf",
+  "doc_type": "UNKNOWN",
+  "confidence": 0.9,
+  "supplier_name": "Swift Logistics",
+  "supplier_vat_number": null,
+  "customer_name": "Northgate Joinery Ltd",
+  "document_number": "DN-5567",
+  "document_date": "2026-02-18",
+  "net_total": null,
+  "vat_total": null,
+  "gross_total": null,
+  "line_items": [],
+  "raw_text_excerpt": "Delivery note DN-5567 goods received 5 boxes timber, signed on delivery 18 February 2026",
+  "page_count": 1
+}

@@ -1,0 +1,39 @@
+{
+  "scenarios": [
+    {
+      "bundle_id": "BUNDLE-A-INVOICES",
+      "client_name": "Northgate Joinery Ltd",
+      "declared_period_start": "2026-01-01",
+      "declared_period_end": "2026-03-31",
+      "expected_accounts": [],
+      "documents": [
+        "01_clean_invoice",
+        "02_bad_vat_invoice",
+        "03_bad_arithmetic_invoice",
+        "04_out_of_period_invoice",
+        "05_illegible_receipt",
+        "10_duplicate_invoice",
+        "11_eur_invoice",
+        "12_delivery_note"
+      ],
+      "bundle_flags": []
+    },
+    {
+      "bundle_id": "BUNDLE-B-STATEMENTS",
+      "client_name": "Harbourside Ltd",
+      "declared_period_start": "2026-02-01",
+      "declared_period_end": "2026-06-30",
+      "expected_accounts": ["12344471", "99995555"],
+      "documents": [
+        "06_statement_february",
+        "07_statement_march",
+        "08_statement_may",
+        "09_statement_june"
+      ],
+      "bundle_flags": [
+        {"rule_id": "SET-STMT-001", "evidence_contains": "April 2026"},
+        {"rule_id": "SET-ACCT-001", "evidence_contains": "5555"}
+      ]
+    }
+  ]
+}
