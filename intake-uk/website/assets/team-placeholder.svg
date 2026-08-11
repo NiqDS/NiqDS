@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="360" viewBox="0 0 1000 360" role="img" aria-label="Placeholder for team photo">
+  <rect width="1000" height="360" fill="#eef2f6"/>
+  <g fill="#c3ccd6">
+    <circle cx="260" cy="150" r="55"/><rect x="195" y="215" width="130" height="90" rx="30"/>
+    <circle cx="500" cy="150" r="55"/><rect x="435" y="215" width="130" height="90" rx="30"/>
+    <circle cx="740" cy="150" r="55"/><rect x="675" y="215" width="130" height="90" rx="30"/>
+  </g>
+  <text x="500" y="335" font-family="Helvetica,Arial,sans-serif" font-size="16" fill="#6b7785" text-anchor="middle">Team photo goes here — replace with a real photo of your people</text>
+</svg>

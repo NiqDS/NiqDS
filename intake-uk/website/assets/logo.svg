@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="210" height="40" viewBox="0 0 210 40" role="img" aria-label="Intake Gate UK">
+  <rect x="1" y="4" width="32" height="32" rx="8" fill="#10212f" stroke="#1f6feb" stroke-width="2"/>
+  <path d="M9 21 l5 5 l11 -13" fill="none" stroke="#1e8449" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="44" y="27" font-family="Helvetica,Arial,sans-serif" font-size="19" font-weight="700" fill="#10212f">Intake Gate</text>
+  <text x="182" y="27" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="600" fill="#1f6feb">· UK</text>
+</svg>

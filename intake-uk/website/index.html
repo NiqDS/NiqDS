@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- #11 unique page title  ·  #12 meta description -->
+  <title>Intake Gate · UK — catch missing bookkeeping records before they hit your books</title>
+  <meta name="description" content="Intake Gate checks every client document bundle against 20+ UK bookkeeping rules the moment it lands, then writes the chase email for you. Every flag traces to a named rule. Book a demo.">
+
+  <!-- Canonical + robots. Replace intakegate.example.com with your real domain. -->
+  <link rel="canonical" href="https://intakegate.example.com/">
+  <meta name="robots" content="index,follow">
+
+  <!-- #13 social share image (Open Graph + Twitter) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Intake Gate · UK">
+  <meta property="og:title" content="Stop chasing clients for the same missing records.">
+  <meta property="og:description" content="Every client bundle checked against 20+ UK bookkeeping rules — and the chase email written for you.">
+  <meta property="og:url" content="https://intakegate.example.com/">
+  <meta property="og:image" content="https://intakegate.example.com/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Stop chasing clients for the same missing records.">
+  <meta name="twitter:description" content="UK bookkeeping intake QA that flags what's missing or wrong and writes the client chase email.">
+  <meta name="twitter:image" content="https://intakegate.example.com/assets/og-image.png">
+
+  <!-- Favicons -->
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/assets/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <meta name="theme-color" content="#10212f">
+
+  <link rel="stylesheet" href="/styles.css">
+
+  <!-- #17 structured data: Organization + SoftwareApplication + FAQ.
+       Replace placeholder URLs, address and contact details with real values. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://intakegate.example.com/#org",
+        "name": "Intake Gate",
+        "url": "https://intakegate.example.com/",
+        "logo": "https://intakegate.example.com/assets/icon-512.png",
+        "email": "hello@intakegate.example.com",
+        "areaServed": "GB",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "[Your street address]",
+          "addressLocality": "[Town/City]",
+          "postalCode": "[Postcode]",
+          "addressCountry": "GB"
+        }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "Intake Gate",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "GBP",
+                    "description": "Free demo; subscription tiers by active client count." },
+        "description": "Pre-accounting document intake QA for UK bookkeeping practices."
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {"@type":"Question","name":"Does Intake Gate submit anything to HMRC?",
+           "acceptedAnswer":{"@type":"Answer","text":"No. It is a pre-submission quality gate. Nothing is filed with HMRC and there is no MTD submission — it simply tells you what to fix before you file the way you already do."}},
+          {"@type":"Question","name":"How does it decide something is wrong?",
+           "acceptedAnswer":{"@type":"Answer","text":"Deterministic rules. Every flag carries a rule ID and a plain-English reason and points at the exact field. It is ordinary code, not an AI guess, so you can audit why anything failed."}},
+          {"@type":"Question","name":"Do I have to change my accounting software?",
+           "acceptedAnswer":{"@type":"Answer","text":"No. Intake Gate sits in front of your existing workflow. Write-back connectors to accounting systems are on the roadmap; today it produces a gap report and a client chase message."}},
+          {"@type":"Question","name":"What can it catch that capture tools can't?",
+           "acceptedAnswer":{"@type":"Answer","text":"Bundle-level gaps: a missing month of bank statements, an entire account the client forgot, duplicates, and documents that fall outside the declared period — things invisible to per-document capture."}},
+          {"@type":"Question","name":"How is it priced?",
+           "acceptedAnswer":{"@type":"Answer","text":"A monthly subscription scaled to how many active clients you run through it, with a free tier to trial it on a handful of clients."}}
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+
+<!-- ============ HEADER / NAV (#3 internal links) ============ -->
+<header class="site">
+  <div class="wrap">
+    <a href="/" aria-label="Intake Gate home"><img src="/assets/logo.svg" alt="Intake Gate UK logo" width="210" height="40"></a>
+    <nav class="primary" aria-label="Primary">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#faq">FAQ</a>
+      <a href="#pricing">Pricing</a>
+      <a class="cta" href="#demo">Book a demo</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============ HERO — #2 CTA above the fold ============ -->
+<section class="hero">
+  <div class="wrap grid">
+    <div>
+      <span class="eyebrow">UK bookkeeping intake QA</span>
+      <h1>Stop chasing clients for the same missing records.</h1>
+      <p class="lead">Intake Gate checks every client document bundle against 20+ UK bookkeeping
+        rules the moment it lands — then writes the exact chase email naming what's missing or wrong.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="#demo">Book a 15-minute demo →</a>
+        <a class="btn ghost" href="#how">See how it works</a>
+      </div>
+      <!-- #8 response-time promise (also its own banner below) -->
+      <p class="assurance">✓ Runs against your existing workflow &nbsp;·&nbsp; ✓ Every flag traces to a named rule &nbsp;·&nbsp; ✓ We reply within 1 business day</p>
+    </div>
+    <div>
+      <!-- Product preview: a mock of the flags panel -->
+      <div class="panel" role="img" aria-label="Example intake results showing three flagged issues in a client bundle">
+        <div style="font-weight:700;color:#fff;margin-bottom:8px;">Harbourside Ltd · Q1 bundle</div>
+        <div class="row"><span class="pill block">BLOCK</span> Bank statement missing: April 2026 (a/c ending 4471)</div>
+        <div class="row"><span class="pill block">BLOCK</span> VAT number on Ridgeway Ltd invoice isn't valid</div>
+        <div class="row"><span class="pill warn">WARN</span> Invoice in EUR, not GBP</div>
+        <div class="row"><span class="pill ok">OK</span> 7 of 9 documents passed</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS (#3 internal links target) ============ -->
+<section id="how" class="alt">
+  <div class="wrap">
+    <span class="eyebrow">The core loop</span>
+    <h2>Broken bundle in, correct chase email out — in under a minute.</h2>
+    <div class="cards" style="margin-top:24px;">
+      <div class="card"><div class="num">1</div><h3>Drop the bundle in</h3>
+        <p class="muted">Upload the folder of client documents and set the period. PDFs, scans, images.</p></div>
+      <div class="card"><div class="num">2</div><h3>Rules do the checking</h3>
+        <p class="muted">The model only reads documents into data. Deterministic rules make every pass/fail call — format, arithmetic, dates, and bundle-level gaps.</p></div>
+      <div class="card"><div class="num">3</div><h3>Send the chase</h3>
+        <p class="muted">Get a gap report and a client-ready chase email listing exactly what to fix. Copy, send, done.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURES ============ -->
+<section id="features">
+  <div class="wrap">
+    <span class="eyebrow">Why practices choose it</span>
+    <h2>The checks nothing else on the market does.</h2>
+    <div class="cards" style="margin-top:24px;">
+      <div class="card"><h3>Missing-statement detection</h3><p class="muted">Spots a whole month of bank statements missing — "missing April 2026 for the account ending 4471" — not a vague count.</p></div>
+      <div class="card"><h3>Forgotten-account coverage</h3><p class="muted">Flags an entire bank account the client never sent. Invisible to every per-document capture tool.</p></div>
+      <div class="card"><h3>Auditable by design</h3><p class="muted">Every flag has a rule ID, a reason and the offending value. Point at it and say exactly why it failed.</p></div>
+      <div class="card"><h3>UK VAT number validation</h3><p class="muted">Real check-digit validation (both the classic and the newer scheme), not a length check.</p></div>
+      <div class="card"><h3>Period &amp; duplicate control</h3><p class="muted">Catches out-of-period documents and probable duplicates before they double-count.</p></div>
+      <div class="card"><h3>Exact money maths</h3><p class="muted">Net + VAT = gross, checked to the penny. No floating-point drift, no silent rounding.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CASE STUDIES (#6) — PLACEHOLDER ============ -->
+<!-- PLACEHOLDER: replace with REAL case studies once you have consenting clients.
+     Do not publish invented results. Keep the structure, swap the content. -->
+<section id="case-studies" class="alt">
+  <div class="wrap">
+    <span class="eyebrow">Case studies</span>
+    <h2>Results from practices using Intake Gate</h2>
+    <p class="note">PLACEHOLDER — add 2–3 real case studies here (practice name with permission, the
+      before/after, and one hard number such as hours saved per VAT quarter). Do not use invented figures.</p>
+    <div class="cards two" style="margin-top:20px;">
+      <div class="card"><h3>[Practice name] — [X hours saved per quarter]</h3>
+        <p class="muted">[One paragraph: what the intake process looked like before, what changed, and the measurable result. Link to a full write-up.]</p>
+        <p><a href="#demo">Read the full story →</a></p></div>
+      <div class="card"><h3>[Practice name] — [fewer back-and-forth emails]</h3>
+        <p class="muted">[One paragraph case study. Quote the owner if they consent.]</p>
+        <p><a href="#demo">Read the full story →</a></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ REVIEWS (#15) — PLACEHOLDER ============ -->
+<!-- PLACEHOLDER: replace with REAL reviews only. Never fabricate testimonials or names.
+     Pull verified quotes from customers, or an embedded Google/Trustpilot widget. -->
+<section id="reviews">
+  <div class="wrap">
+    <span class="eyebrow">What practices say</span>
+    <h2>Real reviews</h2>
+    <p class="note">PLACEHOLDER — replace with genuine, attributable reviews (or embed your Google/Trustpilot
+      reviews widget). Leave this out entirely until you have real ones rather than inventing any.</p>
+    <div class="cards" style="margin-top:20px;">
+      <div class="quote"><div class="stars" aria-label="5 out of 5 stars">★★★★★</div>
+        <p>"[Real customer quote goes here.]"</p><div class="by">— [Name, role], [Practice]</div></div>
+      <div class="quote"><div class="stars" aria-label="5 out of 5 stars">★★★★★</div>
+        <p>"[Real customer quote goes here.]"</p><div class="by">— [Name, role], [Practice]</div></div>
+      <div class="quote"><div class="stars" aria-label="5 out of 5 stars">★★★★★</div>
+        <p>"[Real customer quote goes here.]"</p><div class="by">— [Name, role], [Practice]</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESPONSE-TIME PROMISE (#8) ============ -->
+<section class="alt" style="padding:36px 0;">
+  <div class="wrap">
+    <div class="promise">
+      <span class="dot" aria-hidden="true"></span>
+      <div><strong>Our response promise:</strong> book a demo or send a question and a real person
+        replies within <strong>1 business day</strong> — usually the same day.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRICING teaser (#3 internal link target) ============ -->
+<section id="pricing">
+  <div class="wrap center">
+    <span class="eyebrow">Pricing</span>
+    <h2>Simple subscription, scaled to your client count.</h2>
+    <p class="lead" style="margin:0 auto 22px;">A free tier to trial it on a handful of clients, then a monthly
+      plan that grows with the number of active clients you run through the gate.</p>
+    <a class="btn primary" href="#demo">Get pricing for your practice →</a>
+    <p class="muted" style="margin-top:10px;font-size:13px;">Full plan breakdown shared on your demo call.</p>
+  </div>
+</section>
+
+<!-- ============ FAQ (#7 — five questions) ============ -->
+<section id="faq" class="alt">
+  <div class="wrap">
+    <span class="eyebrow">FAQ</span>
+    <h2>Questions practices ask us</h2>
+    <div style="margin-top:22px;">
+      <details class="faq" open><summary>Does it submit anything to HMRC?</summary>
+        <div class="a">No. Intake Gate is a pre-submission quality gate. Nothing is filed with HMRC and there is no
+          MTD submission — it tells you what to fix, then you file the way you already do.</div></details>
+      <details class="faq"><summary>How does it decide something is wrong?</summary>
+        <div class="a">Deterministic rules. Every flag carries a rule ID, a plain-English reason and the exact field it
+          fired on. It's ordinary code, not an AI guess — so you can audit why anything failed.</div></details>
+      <details class="faq"><summary>Do I have to change my accounting software?</summary>
+        <div class="a">No. It sits in front of your existing workflow. Write-back connectors to accounting systems are on
+          the roadmap; today it produces a gap report and a client chase message you can send in one click.</div></details>
+      <details class="faq"><summary>What can it catch that capture tools can't?</summary>
+        <div class="a">Bundle-level gaps: a missing month of bank statements, an entire account the client forgot,
+          duplicates, and documents outside the declared period — all invisible to per-document capture.</div></details>
+      <details class="faq"><summary>How is it priced?</summary>
+        <div class="a">A monthly subscription scaled to how many active clients you run through it, with a free tier so
+          you can trial it on a few clients first. <a href="#demo">Book a demo</a> for plan details.</div></details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONTACT + MAP (#14) + DEMO FORM ============ -->
+<section id="demo">
+  <div class="wrap">
+    <span class="eyebrow">Book a demo</span>
+    <h2>Watch a broken bundle become a correct chase email.</h2>
+    <div class="contact-grid" style="margin-top:22px;">
+      <div>
+        <!-- The form posts to /thank-you.html (#4). Wire the action to your form
+             handler / CRM (Formspree, HubSpot, etc.) when you go live. -->
+        <form class="stack-lg" action="/thank-you.html" method="get" aria-label="Demo request">
+          <div><label for="name"><strong>Your name</strong></label>
+            <input id="name" name="name" type="text" required autocomplete="name"
+                   style="width:100%;padding:11px;border:1px solid var(--line);border-radius:8px;"></div>
+          <div><label for="email"><strong>Work email</strong></label>
+            <input id="email" name="email" type="email" required autocomplete="email"
+                   style="width:100%;padding:11px;border:1px solid var(--line);border-radius:8px;"></div>
+          <div><label for="practice"><strong>Practice / firm</strong></label>
+            <input id="practice" name="practice" type="text" autocomplete="organization"
+                   style="width:100%;padding:11px;border:1px solid var(--line);border-radius:8px;"></div>
+          <button class="btn primary" type="submit">Request my demo →</button>
+          <p class="muted" style="font-size:13px;">We reply within 1 business day. No spam, ever.
+            See our <a href="/privacy.html">privacy policy</a>.</p>
+        </form>
+      </div>
+      <div>
+        <h3>Where to find us</h3>
+        <p class="muted">[Your office address]<br>[Town/City], [Postcode]<br>
+          <a href="mailto:hello@intakegate.example.com">hello@intakegate.example.com</a></p>
+        <!-- #14 maps + directions — PLACEHOLDER.
+             If you have a physical office, paste your Google Maps embed iframe here
+             (Maps → Share → Embed a map). Replace the src below. If you're remote-only,
+             it's fine to remove this map and keep just the contact details. -->
+        <iframe class="map-embed" title="Map to our office — replace with your Google Maps embed"
+                loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+                src="about:blank"
+                aria-label="Map placeholder — add your Google Maps embed URL"></iframe>
+        <p class="note">PLACEHOLDER — replace the map <code>src</code> with your Google Maps embed, or remove
+          this map if you have no public office.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TEAM (#20 team photo) — PLACEHOLDER ============ -->
+<section class="alt">
+  <div class="wrap center">
+    <span class="eyebrow">The team</span>
+    <h2>Built by people you can actually reach</h2>
+    <!-- #16 alt text present; #20 replace with a real photo of your team -->
+    <img src="/assets/team-placeholder.svg" alt="Placeholder illustration where a real team photo will go"
+         width="1000" height="360" style="border-radius:12px;margin:18px auto 0;">
+    <p class="note" style="display:inline-block;margin-top:12px;">PLACEHOLDER — swap for a real photo of your
+      team. A genuine face-of-the-business photo measurably lifts trust and conversions.</p>
+  </div>
+</section>
+
+<!-- ============ FOOTER (#3 internal links, #18 privacy link) ============ -->
+<footer class="site">
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <img src="/assets/logo.svg" alt="Intake Gate UK logo" width="210" height="40" style="filter:brightness(0) invert(1);opacity:.9;">
+        <p style="max-width:340px;margin-top:12px;font-size:14px;">Pre-accounting document intake QA for UK
+          bookkeeping practices. The model extracts; deterministic code validates.</p>
+      </div>
+      <div><h4>Product</h4>
+        <ul>
+          <li><a href="#how">How it works</a></li>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul></div>
+      <div><h4>Company</h4>
+        <ul>
+          <li><a href="#demo">Book a demo</a></li>
+          <li><a href="/privacy.html">Privacy policy</a></li>
+          <li><a href="mailto:hello@intakegate.example.com">Contact</a></li>
+        </ul></div>
+    </div>
+    <div class="legal">
+      © <span id="year">2026</span> Intake Gate. [Registered company name / number if applicable].
+      Not affiliated with HMRC. All product names are illustrative.
+    </div>
+  </div>
+</footer>
+
+<!-- ============ STICKY MOBILE CTA (#9) ============ -->
+<div class="sticky-cta"><a class="btn primary" href="#demo">Book a 15-minute demo →</a></div>
+
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+</script>
+
+<!-- ============ #19 GOOGLE ANALYTICS (GA4) — PLACEHOLDER ============ -->
+<!-- Replace G-XXXXXXXXXX with your real GA4 Measurement ID, then uncomment.
+     Left commented so the site ships without loading a tracker until you opt in
+     (and until your cookie/consent notice is in place). -->
+<!--
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-XXXXXXXXXX');
+</script>
+-->
+</body>
+</html>

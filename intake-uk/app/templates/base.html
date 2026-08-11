@@ -4,6 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Intake Gate (UK){% endblock %}</title>
+  {# #12 meta description — per-page overridable #}
+  <meta name="description" content="{% block description %}Intake Gate — UK bookkeeping document intake QA. The model extracts; deterministic code validates.{% endblock %}">
+  {# The app sits behind sign-in, so keep it out of search results. #}
+  <meta name="robots" content="noindex,nofollow">
+  {# Favicons #}
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <meta name="theme-color" content="#10212f">
+  {# #13 social share (used if an internal link is ever shared) #}
+  <meta property="og:title" content="Intake Gate · UK">
+  <meta property="og:description" content="Catch missing or wrong client records before they hit your books.">
+  <meta property="og:type" content="website">
+  {#
+    #19 Google Analytics (GA4) — placeholder, intentionally left commented.
+    Replace G-XXXXXXXXXX and uncomment only if you track the signed-in app
+    (and have a consent notice in place).
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
+      gtag('js',new Date());gtag('config','G-XXXXXXXXXX');</script>
+  #}
   <style>
     :root {
       --block: #c0392b; --warn: #b8860b; --clean: #1e8449; --ink: #1c2733;

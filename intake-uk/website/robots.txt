@@ -1,0 +1,7 @@
+# Intake Gate marketing site — replace intakegate.example.com with your real domain.
+User-agent: *
+Allow: /
+# Keep private/thank-you pages out of the index:
+Disallow: /thank-you.html
+
+Sitemap: https://intakegate.example.com/sitemap.xml

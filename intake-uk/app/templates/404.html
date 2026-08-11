@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Not found (404) · Intake Gate{% endblock %}
+{% block description %}That page or bundle doesn't exist.{% endblock %}
+{% block content %}
+<div class="card" style="text-align:center;">
+  <div style="font-size:56px;font-weight:800;color:#1f6feb;line-height:1;">404</div>
+  <h1>We couldn't find that.</h1>
+  <p class="muted">{{ detail or "The page or bundle doesn't exist, or may have been removed." }}</p>
+  <p style="margin-top:16px;"><a class="btn" href="/">← Back to upload</a></p>
+</div>
+{% endblock %}

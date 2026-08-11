@@ -10,10 +10,11 @@ import uuid
 from datetime import date
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import db
 from app.ingest.extract import extract_document
@@ -36,6 +37,22 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 @app.on_event("startup")
 def _startup() -> None:
     db.init_db()
+
+
+# #1 custom 404 — render a branded page instead of bare JSON.
+@app.exception_handler(StarletteHTTPException)
+async def not_found_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404:
+        return templates.TemplateResponse(
+            request, "404.html", {"detail": exc.detail}, status_code=404
+        )
+    return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
+
+
+# #10 robots.txt — the app is behind sign-in; keep crawlers out entirely.
+@app.get("/robots.txt", response_class=PlainTextResponse)
+def robots() -> str:
+    return "User-agent: *\nDisallow: /\n"
 
 
 SEVERITY_CLASS = {"BLOCK": "block", "WARN": "warn", "INFO": "info"}
@@ -117,7 +134,7 @@ def load_demo(scenario: str = Form(...)):
 def bundle_view(request: Request, bundle_id: str):
     bundle = db.get_bundle(bundle_id)
     if bundle is None:
-        return HTMLResponse("Bundle not found", status_code=404)
+        raise HTTPException(status_code=404, detail="That bundle doesn't exist.")
     _flags, report, _chase = _compute(bundle)
     doc_reports = {d.source_file: d for d in report.documents}
     return templates.TemplateResponse(
@@ -136,7 +153,7 @@ def bundle_view(request: Request, bundle_id: str):
 def report_view(request: Request, bundle_id: str):
     bundle = db.get_bundle(bundle_id)
     if bundle is None:
-        return HTMLResponse("Bundle not found", status_code=404)
+        raise HTTPException(status_code=404, detail="That bundle doesn't exist.")
     _flags, report, chase = _compute(bundle)
     return templates.TemplateResponse(
         request,
@@ -154,6 +171,6 @@ def report_view(request: Request, bundle_id: str):
 def chase_text(bundle_id: str):
     bundle = db.get_bundle(bundle_id)
     if bundle is None:
-        return PlainTextResponse("Bundle not found", status_code=404)
+        raise HTTPException(status_code=404, detail="That bundle doesn't exist.")
     _flags, _report, chase = _compute(bundle)
     return PlainTextResponse(chase.text)
