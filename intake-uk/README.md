@@ -58,6 +58,22 @@ accuracy reported separately** from rule accuracy. Target for the demo — met �
 is **zero false positives on `BLOCK`-severity rules**: a false BLOCK sends a
 client a wrong chase message, the one failure mode that loses the account.
 
+## Concierge CLI (run a bundle without the web app)
+
+For manual / batch delivery — point it at a folder of a client's documents and
+get the gap report and chase message as files:
+
+```bash
+python -m app.cli run ./client-docs \
+  --client "Bright Cafe Ltd" --from 2026-01-01 --to 2026-03-31 \
+  --accounts 12344471,99995555 --out ./out
+
+python -m app.cli demo BUNDLE-B-STATEMENTS      # offline demo, no files needed
+```
+
+Exit code is non-zero if anything BLOCKs. This is the tool behind the Phase 0
+concierge workflow — see [`docs/phase0/concierge-runbook.md`](docs/phase0/concierge-runbook.md).
+
 ## Switching to a real model
 
 No code change is needed outside `.env`:
