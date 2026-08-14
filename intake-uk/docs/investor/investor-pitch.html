@@ -1,0 +1,391 @@
+<title>Intake Gate Investor Brief</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --paper:#f4f7fb; --surface:#ffffff; --surface-2:#eaf0f7;
+    --ink:#0f1f2c; --muted:#556472; --faint:#7b8794;
+    --line:#dbe3ec; --line-strong:#c4d0dd;
+    --accent:#1f6feb; --accent-soft:#e7f0ff; --accent-ink:#12468f;
+    --navy:#0d1e2c; --on-navy:#d7e4f0; --on-navy-soft:#8ea6bb;
+    --good:#1e8449; --good-bg:#e4f2ea;
+    --warn:#a9770b; --warn-bg:#f6eed8;
+    --crit:#c0392b;
+    --shadow:0 1px 2px rgba(16,33,47,.05), 0 12px 30px rgba(16,33,47,.06);
+    --serif:Georgia,"Iowan Old Style","Times New Roman",serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#0a141d; --surface:#0f1e2a; --surface-2:#152634;
+      --ink:#e8eff6; --muted:#9fb0bf; --faint:#7f92a2;
+      --line:#22333f; --line-strong:#2c4150;
+      --accent:#5a9bff; --accent-soft:#152c46; --accent-ink:#bcd6ff;
+      --navy:#081420; --on-navy:#d7e4f0; --on-navy-soft:#7f97ac;
+      --good:#3caf6d; --good-bg:#12281d;
+      --warn:#d0a13c; --warn-bg:#2c2411;
+      --crit:#df6a5b;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 14px 34px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#0a141d; --surface:#0f1e2a; --surface-2:#152634;
+    --ink:#e8eff6; --muted:#9fb0bf; --faint:#7f92a2;
+    --line:#22333f; --line-strong:#2c4150;
+    --accent:#5a9bff; --accent-soft:#152c46; --accent-ink:#bcd6ff;
+    --navy:#081420; --on-navy:#d7e4f0; --on-navy-soft:#7f97ac;
+    --good:#3caf6d; --good-bg:#12281d;
+    --warn:#d0a13c; --warn-bg:#2c2411;
+    --crit:#df6a5b;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 14px 34px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); font-size:17px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:800px; margin:0 auto; padding:0 24px; }
+  .measure { max-width:660px; }
+
+  h1,h2,h3 { font-family:var(--serif); font-weight:700; text-wrap:balance; letter-spacing:-.01em; }
+  h2 { font-size:26px; line-height:1.2; margin:0 0 8px; }
+  h3 { font-size:18px; margin:0 0 5px; }
+  p { margin:0 0 14px; }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  strong { font-weight:650; color:var(--ink); }
+  .lead { font-size:19px; color:var(--muted); }
+  .mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  .eyebrow { font-family:var(--mono); font-size:12px; font-weight:600; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--accent); }
+
+  /* Hero */
+  .hero { background:var(--navy); color:var(--on-navy); padding:60px 0 54px; }
+  .hero .badge { display:inline-flex; align-items:center; gap:9px; margin-bottom:22px; }
+  .hero .badge span { font-family:var(--mono); font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--on-navy); }
+  .hero h1 { font-size:clamp(32px,5.6vw,50px); line-height:1.05; margin:0 0 16px; color:#fff; }
+  .hero h1 em { font-style:normal; color:#79b0ff; }
+  .hero .sub { font-size:19px; color:var(--on-navy); max-width:600px; margin:0 0 26px; }
+  .asks { display:flex; flex-wrap:wrap; gap:10px; }
+  .ask-chip { font-family:var(--mono); font-size:12.5px; letter-spacing:.02em; padding:8px 13px;
+    border:1px solid rgba(255,255,255,.2); border-radius:999px; color:var(--on-navy); background:rgba(255,255,255,.04); }
+  .ask-chip b { color:#fff; }
+  .hero .meta { margin-top:24px; padding-top:16px; border-top:1px solid rgba(255,255,255,.12);
+    font-family:var(--mono); font-size:12px; color:var(--on-navy-soft); }
+
+  section.block { padding:48px 0; border-bottom:1px solid var(--line); }
+  .kicker { margin-bottom:18px; }
+  .kicker h2 { margin-top:6px; }
+
+  /* Problem / solution split */
+  .split { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px; box-shadow:var(--shadow); }
+  .card.problem { border-top:3px solid var(--crit); }
+  .card.solution { border-top:3px solid var(--good); }
+  .card h3 { margin-top:0; }
+  .card p { font-size:14.5px; color:var(--muted); margin-bottom:0; }
+
+  /* Timeline band */
+  .timeline { display:grid; grid-template-columns:repeat(3,1fr);
+    border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--surface); box-shadow:var(--shadow); }
+  .timeline .cell { padding:18px 20px; border-right:1px solid var(--line); }
+  .timeline .cell:last-child { border-right:0; }
+  .timeline .when { font-family:var(--mono); font-size:12px; color:var(--muted); }
+  .timeline .thr { font-family:var(--mono); font-size:28px; font-weight:600; margin:5px 0 2px; font-variant-numeric:tabular-nums; }
+  .timeline .who { font-size:13px; color:var(--muted); }
+
+  /* Stat tiles */
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .stat { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 20px; box-shadow:var(--shadow); }
+  .stat .fig { font-family:var(--mono); font-size:30px; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums; line-height:1; }
+  .stat .lbl { font-size:13px; color:var(--muted); margin-top:8px; }
+
+  /* Callout */
+  .callout { border-left:3px solid var(--accent); background:var(--surface); padding:16px 18px;
+    border-radius:0 12px 12px 0; box-shadow:var(--shadow); margin:18px 0; }
+  .callout .l { font-family:var(--mono); font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); display:block; margin-bottom:5px; }
+  .callout.good { border-left-color:var(--good); } .callout.good .l { color:var(--good); }
+  .callout.grant { border-left-color:var(--warn); background:var(--warn-bg); } .callout.grant .l { color:var(--warn); }
+
+  /* Tables */
+  .tbl-scroll { overflow-x:auto; border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); background:var(--surface); }
+  table { width:100%; border-collapse:collapse; font-size:14.5px; min-width:460px; }
+  th,td { text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top; }
+  thead th { font-family:var(--mono); font-size:11.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); background:var(--surface-2); }
+  tbody tr:last-child td { border-bottom:0; }
+  td.num,th.num { font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+  /* Status list */
+  .status { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0; }
+  .status li { display:grid; grid-template-columns:22px 1fr; gap:12px; padding:11px 0; border-top:1px solid var(--line); font-size:14.5px; color:var(--muted); }
+  .status li:first-child { border-top:0; }
+  .status .mk { font-family:var(--mono); font-weight:700; }
+  .mk.done { color:var(--good); } .mk.now { color:var(--accent); } .mk.next { color:var(--faint); }
+
+  /* Phases */
+  .phase { display:grid; grid-template-columns:auto 1fr; gap:16px; padding:14px 0; border-top:1px solid var(--line); }
+  .phase:first-child { border-top:0; }
+  .phase .n { font-family:var(--mono); font-size:13px; font-weight:600; color:#fff; background:var(--accent);
+    width:28px; height:28px; border-radius:8px; display:grid; place-items:center; }
+  .phase h3 { margin:0 0 3px; } .phase p { margin:0; font-size:14px; color:var(--muted); }
+  .phase .when { font-family:var(--mono); font-size:11.5px; color:var(--faint); }
+
+  /* Ask panel */
+  .ask-panel { background:var(--navy); color:var(--on-navy); border-radius:16px; padding:28px; }
+  .ask-panel h2 { color:#fff; }
+  .ask-panel .use { list-style:none; padding:0; margin:14px 0 0; display:flex; flex-direction:column; gap:9px; }
+  .ask-panel .use li { display:flex; gap:12px; align-items:baseline; font-size:14.5px; color:var(--on-navy); border-top:1px solid rgba(255,255,255,.1); padding-top:9px; }
+  .ask-panel .use li:first-child { border-top:0; }
+  .ask-panel .use .pct { font-family:var(--mono); color:#79b0ff; min-width:44px; }
+
+  .ph { font-family:var(--mono); font-size:.9em; color:var(--accent-ink); background:var(--accent-soft);
+    padding:1px 6px; border-radius:5px; }
+  .note { font-size:13px; color:var(--faint); font-style:italic; }
+  .disclaim { background:var(--surface-2); border-radius:12px; padding:16px 18px; font-size:13px; color:var(--muted); }
+  .sources { font-size:12.5px; color:var(--muted); }
+  .sources a { color:var(--muted); text-decoration:underline; }
+  footer.doc { padding:32px 0 60px; }
+
+  .reveal { opacity:0; transform:translateY(14px); transition:opacity .6s ease, transform .6s ease; }
+  .reveal.in { opacity:1; transform:none; }
+  @media (prefers-reduced-motion:reduce){ .reveal{opacity:1;transform:none;transition:none;} }
+
+  @media (max-width:640px){
+    body{font-size:16px;}
+    .split,.stats,.timeline{grid-template-columns:1fr;}
+    .timeline .cell{border-right:0;border-bottom:1px solid var(--line);}
+    .timeline .cell:last-child{border-bottom:0;}
+  }
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="badge">
+      <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+        <rect x="4" y="4" width="56" height="56" rx="13" fill="#0d1e2c" stroke="#3f7fe0" stroke-width="3"/>
+        <path d="M20 33 l8 8 l17 -19" fill="none" stroke="#3caf6d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Intake Gate · Investor brief</span>
+    </div>
+    <h1>The records-QA layer UK bookkeeping is about to <em>need four times a year</em>.</h1>
+    <p class="sub">We catch what's missing or wrong in a client's document bundle the moment it lands —
+      and write the exact chase email — with every decision auditable, not an AI guess.</p>
+    <div class="asks">
+      <span class="ask-chip"><b>Seeking:</b> strategic collaboration + pre-seed</span>
+      <span class="ask-chip"><b>Raising:</b> <span style="color:#fff;">£[___]</span></span>
+      <span class="ask-chip"><b>Stage:</b> working prototype · pre-revenue</span>
+    </div>
+    <div class="meta">Confidential draft · UK · figures marked [___] and “illustrative” to be completed with real data</div>
+  </div>
+</header>
+
+<main>
+  <!-- Problem -->
+  <section class="block">
+    <div class="wrap">
+      <div class="kicker reveal"><span class="eyebrow">The problem</span>
+        <h2>The most valuable hour in a practice is spent chasing clients.</h2></div>
+      <p class="measure reveal">Getting complete, correct records out of a client is the least-billable,
+        most-hated task in bookkeeping — and today it's done by memory, spreadsheets, and back-and-forth email.
+        Capture tools read documents; none of them tell you the bundle is <em>incomplete</em> or write the chase.</p>
+      <div class="split reveal">
+        <div class="card problem"><h3>Today</h3>
+          <p>A month of bank statements missing, a whole account forgotten, an invalid VAT number, a duplicate
+            already paid — caught late, by hand, if at all. Each one is an awkward client email and lost time.</p></div>
+        <div class="card solution"><h3>With Intake Gate</h3>
+          <p>The bundle is checked in seconds against 20+ UK rules. You get a gap report and a ready-to-send
+            chase naming exactly what to fix — every flag traceable to a named rule.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why now -->
+  <section class="block">
+    <div class="wrap">
+      <div class="kicker reveal"><span class="eyebrow">Why now</span>
+        <h2>A regulatory deadline just made a chronic pain acute — and quarterly.</h2></div>
+      <p class="measure reveal">Making Tax Digital for Income Tax turns record-keeping from one annual return
+        into <strong>four quarterly submissions</strong>, on a falling threshold. The chase quadruples, and a
+        wave of first-time digital filers enters the system with messy records.</p>
+      <div class="timeline reveal">
+        <div class="cell"><div class="when">Apr 2026</div><div class="thr">£50k+</div><div class="who">~864,000 in the first wave</div></div>
+        <div class="cell"><div class="when">Apr 2027</div><div class="thr">£30k+</div><div class="who">threshold drops</div></div>
+        <div class="cell"><div class="when">Apr 2028</div><div class="thr">£20k+</div><div class="who">planned — millions in scope</div></div>
+      </div>
+      <p class="note reveal" style="margin-top:12px;">HMRC reports ~436,000 sole traders &amp; landlords have
+        already filed their first quarterly update. The behaviour change is happening now.</p>
+    </div>
+  </section>
+
+  <!-- Solution / moat -->
+  <section class="block">
+    <div class="wrap">
+      <div class="kicker reveal"><span class="eyebrow">The insight</span>
+        <h2>Auditable AI — the part that makes it sellable to a liable buyer.</h2></div>
+      <p class="measure reveal">Our architecture splits the job in two: <strong>an AI model extracts</strong>
+        each document into structured data, then <strong>deterministic code makes every pass/fail decision</strong>.
+        No accountant has to trust a black box — they can point at a named rule and see exactly why something failed.</p>
+      <div class="callout reveal">
+        <span class="l">Why it's defensible</span>
+        The moat isn't the AI — everyone has AI. It's the <strong>explainable, testable UK rule library</strong>
+        a professionally-liable buyer can rely on, plus ownership of the <strong>chase workflow</strong>. It's the
+        one design a black-box competitor structurally can't copy without rebuilding trust from zero.
+      </div>
+      <p class="measure reveal"><strong>The 60-second demo:</strong> a broken bundle goes in → the screen shows
+        red → a plain-English fix list → a chase email you can send. That product exists today.</p>
+    </div>
+  </section>
+
+  <!-- Market -->
+  <section class="block">
+    <div class="wrap">
+      <div class="kicker reveal"><span class="eyebrow">Market</span>
+        <h2>A fragmented UK base, forced to change on a deadline.</h2></div>
+      <div class="stats reveal">
+        <div class="stat"><div class="fig">~40k</div><div class="lbl">UK accountancy firms (~80% ≤4 staff)</div></div>
+        <div class="stat"><div class="fig">~17k</div><div class="lbl">active UK bookkeeping firms</div></div>
+        <div class="stat"><div class="fig">864k+</div><div class="lbl">sole traders &amp; landlords in the 2026 MTD wave</div></div>
+      </div>
+      <div class="tbl-scroll reveal" style="margin-top:18px;">
+        <table>
+          <thead><tr><th>Bottom-up sizing <span style="text-transform:none;">(UK, illustrative)</span></th><th class="num">Basis</th><th class="num">Est.</th></tr></thead>
+          <tbody>
+            <tr><td><strong>TAM</strong> — practices</td><td class="num">~40k firms × ~£1.5k/yr</td><td class="num">~£60m/yr</td></tr>
+            <tr><td><strong>SAM</strong> — small practices doing intake</td><td class="num">~30k × ~£1.5k/yr</td><td class="num">~£45m/yr</td></tr>
+            <tr><td><strong>SOM</strong> — 3-yr reachable</td><td class="num">~8–10% of SAM</td><td class="num">~£4–5m ARR</td></tr>
+            <tr><td><strong>Expansion</strong> — SME direct</td><td class="num">864k+ growing to millions</td><td class="num">optionality</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note reveal" style="margin-top:10px;">Estimates from public firm counts and our pricing hypothesis —
+        to be firmed up with Phase 0 pricing data. Incumbent capture tools (Dext ~£190–240/mo for 10 clients;
+        AutoEntry per-document) validate willingness to pay for adjacent tooling — and leave the QA + chase layer open.</p>
+    </div>
+  </section>
+
+  <!-- Model -->
+  <section class="block">
+    <div class="wrap">
+      <div class="kicker reveal"><span class="eyebrow">Business model</span>
+        <h2>Subscription, metered on active clients.</h2></div>
+      <p class="measure reveal">Recurring SaaS priced on <strong>active clients per month</strong> — the way
+        practices already buy. A free tier funnels; practice tiers scale with the book.</p>
+      <div class="tbl-scroll reveal">
+        <table>
+          <thead><tr><th>Plan</th><th class="num">Clients</th><th class="num">Price (illustrative)</th></tr></thead>
+          <tbody>
+            <tr><td>Free</td><td class="num">1</td><td class="num">£0</td></tr>
+            <tr><td>Starter</td><td class="num">≤10</td><td class="num">~£39–49/mo</td></tr>
+            <tr><td>Practice</td><td class="num">≤40</td><td class="num">~£129–149/mo</td></tr>
+            <tr><td>Scale</td><td class="num">100+</td><td class="num">custom</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout good reveal">
+        <span class="l">Unit economics</span>
+        A 40-client practice ≈ <strong>£1,500–1,800/yr</strong>. Saving ~1 chase-hour per client per quarter is
+        <strong>£120–160/client/yr of value</strong> — ~10× the price. The work is distribution, not justification.
+      </div>
+    </div>
+  </section>
+
+  <!-- Traction & plan -->
+  <section class="block">
+    <div class="wrap">
+      <div class="kicker reveal"><span class="eyebrow">Traction &amp; plan</span>
+        <h2>Built, tested, and entering design partners.</h2></div>
+      <ul class="status reveal">
+        <li><span class="mk done">✓</span><div><strong>Working prototype built</strong> — the full loop (ingest → extract → 20+ deterministic rules → gap report → chase), 53 automated tests, <strong>zero false positives</strong> on blocking rules across the fixture set.</div></li>
+        <li><span class="mk done">✓</span><div><strong>Public site + concierge delivery tool</strong> — a marketing site and a command-line runner to serve partners by hand before the platform exists.</div></li>
+        <li><span class="mk now">▶</span><div><strong>Phase 0 underway</strong> — recruiting 3–5 design-partner practices; running real bundles; validating pricing and an adjacent-module backlog.</div></li>
+        <li><span class="mk next">○</span><div><strong>Next</strong> — self-serve platform (multi-tenancy, billing), then an SME-direct wedge.</div></li>
+      </ul>
+      <div class="reveal" style="margin-top:20px;">
+        <div class="phase"><div class="n">0</div><div><div class="when">now → 3 mo</div><h3>Design partners</h3><p>Concierge delivery, proof, case studies, hardened rules.</p></div></div>
+        <div class="phase"><div class="n">1</div><div><div class="when">3 → 9 mo</div><h3>Self-serve practice SaaS</h3><p>Multi-tenancy, auth, Stripe. Distribution via MTD content, bodies, app marketplaces.</p></div></div>
+        <div class="phase"><div class="n">2</div><div><div class="when">9 mo +</div><h3>SME wedge + integrations</h3><p>Write-back connectors; a free SME tier as a referral loop into practices.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Grant angle -->
+  <section class="block">
+    <div class="wrap">
+      <div class="kicker reveal"><span class="eyebrow">Non-dilutive funding</span>
+        <h2>A genuine innovation story for grants — told honestly.</h2></div>
+      <p class="measure reveal">The fundable innovation is <strong>not</strong> “an AI product” — it's
+        <strong>explainable AI for regulated, professionally-liable finance</strong>: a hybrid where AI extraction
+        is bounded by deterministic, auditable rules so its decisions can be trusted and tested. That's a real R&amp;D
+        question (trustworthy/verifiable AI) and it maps cleanly to UK innovation funding.</p>
+      <div class="callout grant reveal">
+        <span class="l">Avenues to explore</span>
+        <strong>Innovate UK</strong> Smart Grants / sector competitions · <strong>R&amp;D tax relief</strong> on the
+        engineering already done · AI-adoption and productivity programmes. Non-dilutive funding can extend runway
+        alongside a pre-seed round — not replace the commercial proof from Phase 0.
+      </div>
+      <p class="note reveal">Positioning note: we lead with “auditable AI”, never “fully autonomous AI”. Overclaiming
+        autonomy would both fail diligence and undercut the exact trust that makes the product sellable.</p>
+    </div>
+  </section>
+
+  <!-- The ask -->
+  <section class="block">
+    <div class="wrap reveal">
+      <div class="ask-panel">
+        <span class="eyebrow" style="color:#79b0ff;">The ask</span>
+        <h2>Collaboration to turn a proven prototype into a platform.</h2>
+        <p style="color:var(--on-navy);">We're seeking a strategic partner and <strong style="color:#fff;">£[___] pre-seed</strong>
+          to fund the self-serve build and go-to-market through the MTD windows. Indicative use of funds:</p>
+        <ul class="use">
+          <li><span class="pct">~45%</span><span>Engineering — multi-tenancy, billing, the first validated adjacent modules</span></li>
+          <li><span class="pct">~35%</span><span>Go-to-market — content around MTD deadlines, bodies &amp; app-marketplace listings, design-partner conversion</span></li>
+          <li><span class="pct">~20%</span><span>Operations, compliance (DPA/security), and runway</span></li>
+        </ul>
+        <p style="color:var(--on-navy-soft); font-size:13.5px; margin:16px 0 0;">Percentages illustrative — set with a real budget.
+          Especially valuable: partners with distribution into UK practices (accounting software, bodies, accountancy networks).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Team -->
+  <section class="block">
+    <div class="wrap">
+      <div class="kicker reveal"><span class="eyebrow">Team</span><h2>Who's building it.</h2></div>
+      <p class="reveal"><span class="ph">PLACEHOLDER</span> — replace with real bios before sending.</p>
+      <div class="split reveal">
+        <div class="card"><h3>[Founder — Nick]</h3><p>[One line: background, why you, unfair advantage — e.g. data/engineering + the domain access that got you the first design partners.]</p></div>
+        <div class="card"><h3>[Advisors / gaps]</h3><p>[Name a practising accountant/bookkeeper advisor for credibility, and the key hire you'd make with the round.]</p></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="doc">
+    <div class="wrap">
+      <p class="reveal" style="font-family:var(--serif); font-size:19px; margin-bottom:18px;">
+        “Check the records before you touch the books — and never send a client the wrong chase.”</p>
+      <p class="reveal" style="margin-bottom:22px;"><strong>Contact:</strong> <span class="ph">[name · email · phone]</span></p>
+      <div class="disclaim reveal">This is a confidential draft pitch. All financial figures, market
+        estimates and use-of-funds splits are illustrative and to be confirmed with primary data; the venture is
+        pre-revenue at the design-partner stage. Intake Gate performs records quality assurance, not tax advice, and
+        makes no HMRC submission.</div>
+      <p class="sources reveal" style="margin-top:16px;">Market sources:
+        <a href="https://www.bytestart.co.uk/news-insights/864000-sole-traders-and-landlords-face-new-mtd-reporting-rules-from-april-2026/">864k MTD wave — Bytestart</a> ·
+        <a href="https://www.theaccountant-online.com/news/436000-sole-traders-and-landlords-file-first-mtd-update-says-hmrc/">436k first updates — The Accountant</a> ·
+        <a href="https://www.nimblefins.co.uk/business-insurance/accountant-insurance/number-accountants-uk">~40k firms — NimbleFins/ONS</a> ·
+        <a href="https://firmbase.co/resources/industry-lists/bookkeeping-companies-in-the-uk">~17k bookkeeping firms — Firmbase</a> ·
+        <a href="https://taxscape.deloitte.com/measures-spring-statement-2025/making-tax-digital.aspx">MTD thresholds — Deloitte</a></p>
+    </div>
+  </footer>
+</main>
+
+<script>
+  (function () {
+    var els = document.querySelectorAll('.reveal');
+    if (!('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      els.forEach(function (e) { e.classList.add('in'); }); return;
+    }
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    els.forEach(function (e) { io.observe(e); });
+  })();
+</script>
