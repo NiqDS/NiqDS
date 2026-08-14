@@ -57,7 +57,40 @@ Keep it to that. One problem, one proof, one ask.
 
 ---
 
-## 3. Outreach templates
+## 3. Where to find design partners (channels)
+
+Work these roughly in order — **warm beats community beats cold**, every time.
+
+**Warm (start here — highest hit rate)**
+- Your own accountant / bookkeeper, and anyone in your network who runs a practice.
+- Ask every "no" for one referral ("who else should I talk to?"). Referral chains
+  convert far better than cold.
+
+**Communities where UK bookkeepers already gather**
+- **Professional bodies:** AAT, ICB (Institute of Certified Bookkeepers), IAB,
+  ICAEW, ACCA — their member directories, local branches, and CPD/networking events.
+- **AccountingWEB** — the UK community + its events (very high concentration of the buyer).
+- **Facebook groups** — e.g. "UK Bookkeepers", "Bookkeepers", practice-owner groups.
+- **LinkedIn** — search `bookkeeper` / `practice owner` + a UK town; also relevant
+  hashtags around MTD. Engage before pitching.
+- **Reddit / forums** — r/Bookkeeping, UK Business Forums (accountancy section).
+
+**Software ecosystems (find practices by location)**
+- **Xero, QuickBooks, FreeAgent advisor/partner directories** — searchable lists of
+  practices, many actively taking on MTD clients. Also their app marketplaces and
+  partner communities (Xerocon-type events).
+
+**Local**
+- Google Maps "bookkeeper near [town]", local Chambers of Commerce, BNI chapters.
+
+**Inbound (slower, compounding)**
+- A short "broken bundle → chase email in 60 seconds" clip on LinkedIn, pointed at
+  the landing page; MTD-deadline content timed to the April/quarterly dates.
+
+**Cadence suggestion:** 5 warm asks + 10 community/targeted touches per week until
+five partners are signed. Track replies; double down on whichever channel converts.
+
+## 4. Outreach templates
 
 Keep the first touch short and about *their* pain, not our features. Always end
 with a low-friction question that starts a conversation (and doubles as discovery).
@@ -92,7 +125,7 @@ with a low-friction question that starts a conversation (and doubles as discover
 
 ---
 
-## 4. The discovery hook (enrich the portrait while you pitch)
+## 5. The discovery hook (enrich the portrait while you pitch)
 
 Every conversation is a research opportunity. The goal is to find the **less
 obvious pains** — the ones outside "checking documents" — that a small bundled
@@ -114,7 +147,7 @@ partner. Patterns across 5 partners are worth more than any single feature reque
 
 ---
 
-## 5. Qualifying: who makes a good design partner
+## 6. Qualifying: who makes a good design partner
 
 | Good fit | Poor fit |
 |----------|----------|
@@ -128,7 +161,7 @@ Five engaged partners beat twenty passive ones. Optimise for feedback quality.
 
 ---
 
-## 6. Success criteria for the kit
+## 7. Success criteria for the kit
 
 - 5 founding partners signed within [X] weeks.
 - A discovery log with ≥ 15 distinct pains captured and clustered.

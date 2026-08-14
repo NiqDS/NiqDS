@@ -1,0 +1,2 @@
+date,partner,client,period,docs,blocks,warns,false_positives,minutes,notes
+2026-08-14,ExamplePractice,Bright Cafe Ltd,2026Q1,9,2,1,0,8,"April statement missing; VAT typo — partner sent chase same day"
