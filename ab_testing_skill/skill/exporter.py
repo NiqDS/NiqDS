@@ -121,6 +121,29 @@ def write_financial_effect_file(
     return _write_rows(stem, header, rows)
 
 
+def write_metrics_result(
+    output_folder: Path,
+    report_date: date,
+    id_list: list[str],
+    values: dict[str, dict[str, Any]],
+) -> Path:
+    """Result file for the metrics-calculation product: one row per
+
+    submitted ID, one column per requested metric.
+
+    Every submitted ID gets a row even when a metric returned nothing for
+    it -- a blank cell is the signal that the ID wasn't found under the
+    chosen filters, which silently dropping the row would hide.
+    """
+    metrics = sorted(values.keys())
+    header = ["report_date", "codes"] + metrics
+    rows = [
+        [report_date.isoformat(), inn] + [values[metric].get(inn) for metric in metrics]
+        for inn in id_list
+    ]
+    return _write_rows(output_folder / "metrics_result", header, rows)
+
+
 def read_rows(path: Path) -> tuple[list[str], list[list[Any]]]:
     """Public wrapper around the internal xlsx/csv reader, for callers
 

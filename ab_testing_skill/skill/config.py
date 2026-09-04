@@ -117,6 +117,17 @@ class PilotStorageConfig:
 
 
 @dataclass
+class CalculationConfig:
+    """Storage for the metrics-calculation product (web/metrics_calc.html).
+
+    Separate root from the pilots tree: these are one-shot, read-only
+    calculations, not pilots with a lifecycle to monitor.
+    """
+
+    results_root: Path = PACKAGE_ROOT / "data" / "calculations"
+
+
+@dataclass
 class SkillConfig:
     registry: RegistryConfig = field(default_factory=RegistryConfig)
     metrics: MetricScriptConfig = field(default_factory=MetricScriptConfig)
@@ -125,6 +136,7 @@ class SkillConfig:
     master_status: MasterStatusConfig = field(default_factory=MasterStatusConfig)
     notify: NotificationConfig = field(default_factory=NotificationConfig)
     storage: PilotStorageConfig = field(default_factory=PilotStorageConfig)
+    calculation: CalculationConfig = field(default_factory=CalculationConfig)
 
 
 def default_config() -> SkillConfig:

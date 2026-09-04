@@ -1,0 +1,38 @@
+{
+  "_comment": "Filters offered to the user alongside the metric selection. Same idea as subscriptions.json: add an entry here, save, and it shows up in the web form and is passed through to the metric scripts -- no pipeline changes needed. `applies_to` lists the metric codes the filter is offered for (omit or use [\"*\"] for all). `type` drives the input control the form renders: categorical (multi-select from `values`), numeric, or date. The entries below mirror the values currently HARDCODED inside the production metric scripts (segment_kratko, segmca, period_type, is_active, reporting year) -- replace/extend them with the real filter set once it's defined.",
+
+  "segment": {
+    "label": "Сегмент (segment_kratko)",
+    "description": "Client segment, matched against segment_kratko.",
+    "type": "categorical",
+    "values": ["ММБ", "Средний", "Крупный"],
+    "applies_to": ["*"]
+  },
+  "sub_segment": {
+    "label": "Подсегмент (segmca)",
+    "description": "Client sub-segment, matched against segmca.",
+    "type": "categorical",
+    "values": ["Микро", "Малые", "Средние"],
+    "applies_to": ["chod", "chep", "turnover", "revenue", "sdo"]
+  },
+  "period_type": {
+    "label": "Тип периода",
+    "description": "Reporting period granularity (period_type).",
+    "type": "categorical",
+    "values": ["M", "Q", "Y"],
+    "applies_to": ["chod", "chep", "turnover", "revenue", "sdo"]
+  },
+  "reporting_year": {
+    "label": "Год отчётности",
+    "description": "Reporting year. Defaults to the year of the calculation date when not set.",
+    "type": "numeric",
+    "applies_to": ["*"]
+  },
+  "active_only": {
+    "label": "Только активные клиенты",
+    "description": "Restrict to rows where is_active = 1.",
+    "type": "categorical",
+    "values": ["yes", "no"],
+    "applies_to": ["*"]
+  }
+}

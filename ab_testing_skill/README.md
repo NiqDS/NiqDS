@@ -1,13 +1,23 @@
 # AB-Testing Batch Allocation Skill
 
-Turns a submitted list of client INNs into balanced Control (КГ) / Target
-(ЦГ) groups for a bank pilot, computes the financial-effect metrics the
-pilot is measured on, and keeps recalculating them on a schedule for a
-Navigator dashboard. Implements the 7-step agent process from the source
-spec (`docs/original_spec_ru.md` — extracted verbatim from the attached
-`.docx`).
+Two products on one shared foundation, launched from `web/hub.html`:
 
-Deliverable shape, per the brief:
+1. **AB-test pilot allocation** (the original brief) — turns a submitted
+   list of client INNs into balanced Control (КГ) / Target (ЦГ) groups,
+   computes the financial-effect metrics the pilot is measured on, and
+   keeps recalculating them on a schedule for a Navigator dashboard.
+   Implements the 7-step agent process from the source spec
+   (`docs/original_spec_ru.md` — extracted verbatim from the attached
+   `.docx`).
+2. **Metrics calculation** — upload a list of IDs, pick metrics and
+   filters, get one Excel back. No split, no pilot, read-only. See
+   "Product 2" below.
+
+Both share the same `metric_scripts/` bank, `manifest.json`,
+`subscriptions.json`, `filters.json`, exporter and CLI — so a fix to a
+real table query benefits both.
+
+Deliverable shape for product 1, per the original brief:
 
 - **Requester** gets two files: `control_group` and `target_group` (INN
   column renamed to `codes`, per spec step 4).
@@ -47,18 +57,25 @@ wired to an HTTP endpoint with no change to `skill/pipeline.py`.
 pip install -r requirements.txt   # optional: only needed for .xlsx output, else falls back to .csv
 cd ab_testing_skill
 
-# 1. open web/hub.html in a browser -- 3 big buttons, one per product.
-#    "АБ-Тест параметры пилота" -> web/index.html: fill the form, submit ->
-#    downloads request.json + inn_list.csv. The other two buttons are
-#    placeholder pages for the two follow-up products (see "Branching into
-#    more products" below).
+# 1. open web/hub.html in a browser -- one button per product.
+#    Two are built ("АБ-Тест параметры пилота" and "Расчёт метрик по списку ID");
+#    the other two are placeholders (see "Branching into more products" below).
 
-# 2. hand the two downloaded files to the skill
+# --- product 1: AB-test pilot (split a client list into CG/TG) -------------
+# fill web/index.html, submit -> downloads request.json + inn_list.csv
 python -m skill.cli run --request request.json --inn-file inn_list.csv
 
-# 3. later, on whatever cadence the pilot's recalculation_frequency implies
-#    (currently locked to monthly -- see "Assumptions" below)
+# later, on whatever cadence the pilot's recalculation_frequency implies
+# (currently locked to monthly -- see "Assumptions" below)
 python -m skill.cli recalc --pilot-folder "data/pilots/<pilot_slug>"
+
+# --- product 2: metrics calculation (IDs in, one Excel of metrics out) -----
+# fill web/metrics_calc.html, submit -> downloads calc_request.json
+python -m skill.cli calc --request calc_request.json --id-file ids.xlsx
+
+# what can be calculated, and what can be filtered on
+python -m skill.cli metrics
+python -m skill.cli filters --metric chod
 ```
 
 Run the test suite:
@@ -114,32 +131,39 @@ questions" below for why each was added and how it was resolved.
 ```
 skill/                  core package (no I/O side effects outside what's listed below)
   config.py             every path/threshold a deployment needs to change lives here
-  models.py              PilotRequest, SplitResult, PilotResult, ...
-  inn_utils.py           step 1: file format + INN checksum validation
+  models.py              PilotRequest, SplitResult, CalculationRequest, ...
+  inn_utils.py           step 1: .xlsx/.csv reading + INN checksum validation
   registries.py           the 3 prerequisite CSV tables from the spec + step 2 logic,
                            plus the NEW InnStatusRegistry (master Used/Unused/Used_as_cg)
   metrics/runner.py       dispatches metric codes to metric_scripts/*
   splitter.py             step 4: stratified split + financial balance check
   exporter.py             xlsx/csv writers (falls back to csv without openpyxl)
   connectors/              pluggable email + Navigator upload (mock by default)
-  pipeline.py              orchestrates steps 1-5 (run_intake)
-  monitoring.py            step 6 (run_recalculation) + step 7 helper (is_due)
-  cli.py                   `python -m skill.cli run|recalc|metrics`
-metric_scripts/           demo "bank of PySpark scripts", one file per metric
+  pipeline.py              product 1: orchestrates steps 1-5 (run_intake)
+  monitoring.py            product 1: step 6 (run_recalculation) + step 7 helper (is_due)
+  calc_pipeline.py         product 2: run_calculation (IDs + metrics + filters -> Excel)
+  cli.py                   `python -m skill.cli run|recalc|calc|metrics|filters`
+metric_scripts/           demo "bank of PySpark scripts", one file per metric,
+                           shared by both products
   manifest.json            catalog: code, label, value_type, usable_as, script
   subscriptions.json       alias -> real table name/description (edit this, not the scripts)
   subscriptions.py         get_subscription(alias) loader, used from a metric script's run()
+  filters.json             filter registry: label, type, values, applies_to (edit this)
+  filters.py               loader + up-front validation of a filter selection
 sample_data/               demo reference data + empty prerequisite tables
 web/
-  hub.html                 landing page: 3 big buttons, one per product
+  hub.html                 landing page: one button per product
   _template.html           source template for index.html (edit this, not index.html)
-  build_form.py            regenerates index.html's metric checkboxes from manifest.json
-  index.html               generated MVP intake form for "АБ-Тест параметры пилота"
+  _calc_template.html      source template for metrics_calc.html
+  build_form.py            regenerates BOTH generated forms from manifest.json + filters.json
+  index.html               generated intake form for "АБ-Тест параметры пилота"
+  metrics_calc.html        generated form for "Расчёт метрик по списку ID"
   km_test.html              placeholder for "Тест-параметры КМ" (not built yet)
   target_group_picker.html  placeholder for "Подбор Целевой группы для пилота" (not built yet)
 tests/                     pytest suite, all I/O redirected into tmp_path
 docs/original_spec_ru.md   the original spec, verbatim, for traceability
-data/pilots/               runtime output — one folder per pilot (gitignored contents)
+data/pilots/               product 1 runtime output — one folder per pilot (gitignored)
+data/calculations/         product 2 runtime output — one folder per calculation (gitignored)
 ```
 
 ## Wiring into GigaCode
@@ -301,29 +325,103 @@ Decisions from the most recent round of additions:
   test comparing CG vs TG means per financial-effect article is the
   obvious starting point).
 
+## Product 2: metrics calculation (`web/metrics_calc.html`)
+
+Upload a list of IDs (`.xlsx` or `.csv`), tick the metrics you want, tick
+any filters, get one Excel back. Deliberately **read-only**: no CG/TG
+split, no pilot folder, and it never writes to the involved-INN or
+master-status registries — running a calculation must not change which
+clients are available for a future pilot (there's a test asserting this).
+
+```
+web/metrics_calc.html ──(calc_request.json + ids.xlsx)──▶ skill/cli.py calc
+                                                              │
+                                                              ▼
+                                                    skill/calc_pipeline.py
+                                                    run_calculation()
+   1  inn_utils.validate_file()   ── .xlsx/.csv, format + FNS checksum
+   2  metrics/runner.run_many()   ── same script bank, filters passed through
+   3  exporter.write_metrics_result() ── row per ID, column per metric
+      connectors/email_connector.py    ── result + coverage summary
+```
+
+The output keeps **one row per submitted ID**, blank where a metric
+returned nothing, and the run reports **coverage** per metric (how many
+IDs actually got a value). That exists because "ran fine, every column
+blank" is otherwise a silent failure — wrong filters, or IDs simply
+absent from the source table, look identical to success without it.
+
+### Filters (`metric_scripts/filters.json`)
+
+Same pattern as `subscriptions.json`: declare a filter in the JSON file
+and it appears in the web form, in `skill.cli filters`, and gets passed
+to the scripts — no pipeline change needed.
+
+```json
+"sub_segment": {
+  "label": "Подсегмент (segmca)",
+  "type": "categorical",
+  "values": ["Микро", "Малые", "Средние"],
+  "applies_to": ["chod", "chep", "turnover", "revenue", "sdo"]
+}
+```
+
+`applies_to` (`["*"]` for all) means each script only receives the
+filters declared for it — a sub-segment filter that's meaningless for
+OKVED simply isn't passed to `okved.py`. The file ships seeded with the
+values currently **hardcoded inside the production scripts**
+(`segment_kratko`, `segmca`, `period_type`, `is_active`, reporting year),
+because those are exactly the ones worth lifting out into user-selectable
+filters first.
+
+A filter is only *declared* in JSON; how it narrows a query lives in the
+metric script, since only the script knows which column of which table it
+maps to. The bundled demo scripts are a working reference implementation
+(see `metric_scripts/_common.py:FILTER_COLUMNS`).
+
+### The extended script contract
+
+Metric scripts are now:
+
+```python
+def run(inn_list, as_of_date, spark=None, filters=None) -> dict[str, Any]:
+```
+
+Both products share one bank, so this signature applies to both. It's
+backwards compatible: scripts predating `filters` are still called with
+the old three-argument form. What is **not** allowed is silently dropping
+a requested filter — `MetricRunner.run` raises a `TypeError` naming the
+script instead, because unfiltered numbers that look perfectly valid are
+a worse outcome than a failed run.
+
 ## Branching into more products
 
-`web/hub.html` is the entry point now: 3 big buttons, one per product.
+`web/hub.html` is the entry point: one button per product.
 
-1. **АБ-Тест параметры пилота** — this package, fully built (`web/index.html`).
-2. **Тест-параметры КМ** — "Исследования эффективности работы клиентских
+1. **АБ-Тест параметры пилота** — fully built (`web/index.html`).
+2. **Расчёт метрик по списку ID** — fully built (`web/metrics_calc.html`),
+   see the section above.
+3. **Тест-параметры КМ** — "Исследования эффективности работы клиентских
    менеджеров, относительно заявленного плана." Placeholder page only
    (`web/km_test.html`); no backend yet. When this gets built out, it'll
    likely want its own `skill`-style package (own metrics, own splitter or
    no split at all, own pipeline) rather than being bolted onto this one —
    client-manager performance-vs-plan is a different unit of analysis
    (КМ, not client INN) from everything else here.
-3. **Подбор Целевой группы для пилота** — "Заполните требования для выбора
+4. **Подбор Целевой группы для пилота** — "Заполните требования для выбора
    целевой группы для проведения пилота из метрик на выбор и мы поможем
    вам ее подобрать." Placeholder page only (`web/target_group_picker.html`).
    Unlike the AB-test flow (which takes an already-chosen INN list and
    splits it), this one picks a target group *from scratch* by metric
-   criteria — closer to a query/filter tool over `metric_scripts`' data
-   sources than to `skill/splitter.py`.
+   criteria. Now that product 2 exists it's much closer to that than to
+   `skill/splitter.py` — it's essentially the metrics calculation run
+   *backwards*: instead of "these IDs, what are their metrics", it's
+   "these metric criteria, which IDs match". The filters mechanism is
+   most of the groundwork.
 
-Both placeholders are static pages with no form yet — just enough for the
-hub's links to not 404. Come back to this section once either product's
-requirements are scoped.
+The two remaining placeholders are static pages with no form yet — just
+enough for the hub's links to not 404. Come back to this section once
+either product's requirements are scoped.
 
 ## Known limitation: over-stratification on small candidate lists
 

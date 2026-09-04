@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Расчёт метрик по списку ID</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8; --panel: #ffffff; --text: #1c2126; --muted: #5b6570;
+    --border: #d8dce1; --accent: #1f6feb; --accent-text: #ffffff;
+    --danger: #b3261e; --danger-bg: #fdecea; --ok-bg: #eaf7ee; --ok-text: #1e7a34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel: #1c1f24; --text: #e7e9ec; --muted: #9aa4af;
+      --border: #30353c; --accent: #4b8dfa; --accent-text: #0b0d10;
+      --danger: #ff6b64; --danger-bg: #3a1f1e; --ok-bg: #163a24; --ok-text: #6fd88a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a; --panel: #1c1f24; --text: #e7e9ec; --muted: #9aa4af;
+    --border: #30353c; --accent: #4b8dfa; --accent-text: #0b0d10;
+    --danger: #ff6b64; --danger-bg: #3a1f1e; --ok-bg: #163a24; --ok-text: #6fd88a;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6f8; --panel: #ffffff; --text: #1c2126; --muted: #5b6570;
+    --border: #d8dce1; --accent: #1f6feb; --accent-text: #ffffff;
+    --danger: #b3261e; --danger-bg: #fdecea; --ok-bg: #eaf7ee; --ok-text: #1e7a34;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 28px 20px 80px; }
+  a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
+  a.back:hover { color: var(--accent); }
+  h1 { font-size: 22px; margin: 18px 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+  fieldset { border: 1px solid var(--border); border-radius: 10px;
+             padding: 16px 18px 18px; margin: 0 0 18px; background: var(--panel); }
+  legend { font-weight: 600; padding: 0 6px; font-size: 14px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  label:first-of-type { margin-top: 0; }
+  input[type="text"], input[type="email"], input[type="date"], input[type="number"],
+  select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--bg); color: var(--text); font: inherit;
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+  .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+                gap: 8px 14px; margin-top: 4px; }
+  .check-item { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; }
+  .check-item input { margin-top: 3px; }
+  .check-item .desc { color: var(--muted); font-size: 12px; display: block; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .filter-row { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
+  .filter-row:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+  .filter-applies { color: var(--muted); font-size: 11.5px; }
+  button { font: inherit; border: none; border-radius: 7px; padding: 10px 16px; cursor: pointer; }
+  .primary { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+  .secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .file-preview { font-size: 12.5px; color: var(--muted); margin-top: 6px; white-space: pre-wrap; }
+  .banner { border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 14px; display: none; }
+  .banner.error { background: var(--danger-bg); color: var(--danger); display: block; }
+  .banner.ok { background: var(--ok-bg); color: var(--ok-text); display: block; }
+  .steps { background: var(--panel); border: 1px solid var(--border);
+           border-radius: 10px; padding: 16px 18px; }
+  .steps ol { margin: 8px 0 0; padding-left: 20px; }
+  .steps code { background: var(--bg); border: 1px solid var(--border);
+                border-radius: 4px; padding: 1px 5px; font-size: 12.5px; }
+  pre.code-block { background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+                   padding: 10px 12px; font-size: 12.5px; overflow-x: auto;
+                   white-space: pre-wrap; word-break: break-word; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <a class="back" href="hub.html">&larr; Все инструменты</a>
+  <h1>Расчёт метрик по списку ID</h1>
+  <p class="sub">
+    Загрузите файл со списком ID, выберите метрики и фильтры — агент посчитает значения
+    и вернёт Excel-файл. Всё выполняется локально в браузере: файлы никуда не отправляются,
+    пока вы сами не передадите их агенту.
+  </p>
+
+  <form id="calc-form">
+    <fieldset>
+      <legend>1. Расчёт</legend>
+      <label for="request_name">Название расчёта</label>
+      <input type="text" id="request_name" required placeholder="portfolio_check_q3">
+
+      <div class="row">
+        <div>
+          <label for="submitter_full_name">ФИО заказчика</label>
+          <input type="text" id="submitter_full_name" required placeholder="Иванов Иван Иванович">
+        </div>
+        <div>
+          <label for="submitter_email">Внутренняя почта заказчика</label>
+          <input type="email" id="submitter_email" required placeholder="i.ivanov@bank.internal">
+        </div>
+      </div>
+
+      <label for="as_of_date">Дата расчёта</label>
+      <input type="date" id="as_of_date">
+      <p class="hint">Если не указана — берётся сегодняшняя дата.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>2. Файл со списком ID</legend>
+      <label for="id_file">Excel (.xlsx) или CSV со столбцом <code>inn</code></label>
+      <input type="file" id="id_file" accept=".xlsx,.csv" required>
+      <div class="file-preview" id="id_preview"></div>
+      <p class="hint">
+        Предпросмотр только для .csv. Полная проверка (формат, контрольная сумма ИНН)
+        выполняется агентом при запуске — для .xlsx в том числе.
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>3. Метрики для расчёта</legend>
+      <p class="hint">Отметьте галочками нужные метрики — можно выбрать несколько.</p>
+      <div class="check-grid" id="metrics-list"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>4. Фильтры</legend>
+      <p class="hint">
+        Необязательно. Пустое поле = фильтр не применяется. Под каждым фильтром указано,
+        к каким метрикам он относится — к остальным он просто не передаётся.
+      </p>
+      <div id="filters-list"></div>
+    </fieldset>
+
+    <div class="actions">
+      <button type="submit" class="primary">Сформировать calc_request.json</button>
+    </div>
+    <div class="banner" id="form-banner"></div>
+  </form>
+
+  <div class="steps" id="handoff-steps" style="display:none; margin-top:22px;">
+    <strong>Дальше — передайте файлы агенту:</strong>
+    <ol>
+      <li>Сохраните <code>calc_request.json</code> и ваш файл со списком ID в одну папку.</li>
+      <li>
+        Выполните:
+        <pre class="code-block" id="cli-command"></pre>
+      </li>
+    </ol>
+    <button type="button" class="secondary" id="copy-giga-btn">Скопировать сообщение для GigaCode</button>
+    <pre class="code-block" id="giga-message"></pre>
+  </div>
+</div>
+
+<script>
+  const METRICS_CATALOG = /*__METRICS_CATALOG__*/[{"code": "okved", "label": "Отрасль по ОКВЭД", "description": "Industry classification (OKVED code).", "usable_as": ["grouping"]}, {"code": "opf", "label": "ОПФ", "description": "Legal form of organization.", "usable_as": ["grouping"]}, {"code": "tb", "label": "Территориальный банк (ТБ)", "description": "Territorial bank / regional branch.", "usable_as": ["grouping"]}, {"code": "tenure", "label": "Срок жизни в Сбере", "description": "Client tenure with the bank, in years (bucketed for stratification).", "usable_as": ["grouping"]}, {"code": "chod", "label": "ЧОД (средний + суммарный)", "description": "Net operating income.", "usable_as": ["grouping", "financial_effect"]}, {"code": "chep", "label": "ЧЭП (средний + суммарный)", "description": "Net economic profit indicator.", "usable_as": ["grouping", "financial_effect"]}, {"code": "turnover", "label": "Обороты", "description": "Account turnover.", "usable_as": ["grouping", "financial_effect"]}, {"code": "revenue", "label": "Выручка", "description": "Client revenue.", "usable_as": ["grouping", "financial_effect"]}, {"code": "sdo", "label": "СДО", "description": "СДО indicator.", "usable_as": ["grouping", "financial_effect"]}]/*__END_METRICS_CATALOG__*/;
+  const FILTERS_CATALOG = /*__FILTERS_CATALOG__*/[{"code": "segment", "label": "Сегмент (segment_kratko)", "description": "Client segment, matched against segment_kratko.", "type": "categorical", "values": ["ММБ", "Средний", "Крупный"], "applies_to": ["*"]}, {"code": "sub_segment", "label": "Подсегмент (segmca)", "description": "Client sub-segment, matched against segmca.", "type": "categorical", "values": ["Микро", "Малые", "Средние"], "applies_to": ["chod", "chep", "turnover", "revenue", "sdo"]}, {"code": "period_type", "label": "Тип периода", "description": "Reporting period granularity (period_type).", "type": "categorical", "values": ["M", "Q", "Y"], "applies_to": ["chod", "chep", "turnover", "revenue", "sdo"]}, {"code": "reporting_year", "label": "Год отчётности", "description": "Reporting year. Defaults to the year of the calculation date when not set.", "type": "numeric", "values": null, "applies_to": ["*"]}, {"code": "active_only", "label": "Только активные клиенты", "description": "Restrict to rows where is_active = 1.", "type": "categorical", "values": ["yes", "no"], "applies_to": ["*"]}]/*__END_FILTERS_CATALOG__*/;
+
+  const metricsList = document.getElementById('metrics-list');
+  METRICS_CATALOG.forEach(m => {
+    const wrap = document.createElement('label');
+    wrap.className = 'check-item';
+    wrap.innerHTML = `
+      <input type="checkbox" data-code="${m.code}" name="metric">
+      <span>${m.label}<span class="desc">${m.description}</span></span>
+    `;
+    metricsList.appendChild(wrap);
+  });
+
+  const filtersList = document.getElementById('filters-list');
+  FILTERS_CATALOG.forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'filter-row';
+    const appliesTo = f.applies_to.includes('*') ? 'все метрики' : f.applies_to.join(', ');
+    let control;
+    if (f.type === 'categorical' && f.values && f.values.length) {
+      const options = f.values
+        .map(v => `<label class="check-item"><input type="checkbox" data-filter="${f.code}" value="${v}"> <span>${v}</span></label>`)
+        .join('');
+      control = `<div class="check-grid">${options}</div>`;
+    } else if (f.type === 'numeric') {
+      control = `<input type="number" data-filter="${f.code}" data-single="1" placeholder="не задан">`;
+    } else {
+      control = `<input type="text" data-filter="${f.code}" data-single="1" placeholder="не задан">`;
+    }
+    row.innerHTML = `
+      <label>${f.label}</label>
+      <div class="filter-applies">${f.description} — применяется к: ${appliesTo}</div>
+      ${control}
+    `;
+    filtersList.appendChild(row);
+  });
+
+  function selectedMetrics() {
+    return Array.from(document.querySelectorAll('input[name="metric"]:checked'))
+      .map(el => el.dataset.code);
+  }
+
+  function selectedFilters() {
+    const out = {};
+    FILTERS_CATALOG.forEach(f => {
+      const single = document.querySelector(`input[data-filter="${f.code}"][data-single="1"]`);
+      if (single) {
+        const raw = single.value.trim();
+        if (raw !== '') out[f.code] = f.type === 'numeric' ? Number(raw) : raw;
+        return;
+      }
+      const checked = Array.from(
+        document.querySelectorAll(`input[data-filter="${f.code}"]:checked`)
+      ).map(el => el.value);
+      if (checked.length === 1) out[f.code] = checked[0];
+      else if (checked.length > 1) out[f.code] = checked;
+    });
+    return out;
+  }
+
+  const idFileInput = document.getElementById('id_file');
+  const idPreview = document.getElementById('id_preview');
+  let idFileName = '';
+
+  idFileInput.addEventListener('change', () => {
+    const file = idFileInput.files[0];
+    if (!file) { idPreview.textContent = ''; return; }
+    idFileName = file.name;
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      idPreview.textContent = `Файл: ${file.name} (предпросмотр доступен только для .csv).`;
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const lines = String(reader.result).split(/\r?\n/).filter(l => l.trim().length > 0);
+      idPreview.textContent = `Файл: ${file.name}. Строк (без заголовка): ${Math.max(lines.length - 1, 0)}.`;
+    };
+    reader.readAsText(file, 'utf-8');
+  });
+
+  function download(filename, text, mime) {
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  const banner = document.getElementById('form-banner');
+
+  document.getElementById('calc-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    banner.className = 'banner'; banner.textContent = '';
+
+    const metrics = selectedMetrics();
+    if (metrics.length === 0) {
+      banner.className = 'banner error';
+      banner.textContent = 'Выберите хотя бы одну метрику для расчёта.';
+      return;
+    }
+    if (!idFileName) {
+      banner.className = 'banner error';
+      banner.textContent = 'Прикрепите файл со списком ID.';
+      return;
+    }
+
+    const asOf = document.getElementById('as_of_date').value;
+    const request = {
+      request_name: document.getElementById('request_name').value.trim(),
+      submitter_email: document.getElementById('submitter_email').value.trim(),
+      submitter_full_name: document.getElementById('submitter_full_name').value.trim(),
+      metrics: metrics,
+      filters: selectedFilters(),
+      recipient_emails: [],
+      as_of_date: asOf || null
+    };
+
+    download('calc_request.json', JSON.stringify(request, null, 2), 'application/json');
+
+    banner.className = 'banner ok';
+    banner.textContent = 'Файл calc_request.json скачан. Передайте его агенту вместе с файлом ID.';
+
+    const cmd = `python -m skill.cli calc --request calc_request.json --id-file ${idFileName}`;
+    document.getElementById('cli-command').textContent = cmd;
+    document.getElementById('giga-message').textContent =
+`Посчитай метрики по списку ID.
+Параметры — в calc_request.json, список ID — в ${idFileName}.
+Выполни: ${cmd}
+Верни мне metrics_result.xlsx и покажи заполненность (coverage) по каждой метрике.`;
+    document.getElementById('handoff-steps').style.display = 'block';
+    document.getElementById('handoff-steps').scrollIntoView({ behavior: 'smooth' });
+  });
+
+  document.getElementById('copy-giga-btn').addEventListener('click', () => {
+    navigator.clipboard?.writeText(document.getElementById('giga-message').textContent);
+  });
+</script>
+</body>
+</html>

@@ -112,6 +112,69 @@ class PilotRequest:
 
 
 @dataclass
+class CalculationRequest:
+    """One submission from web/metrics_calc.html.
+
+    Deliberately much thinner than PilotRequest: this product just
+    calculates the selected metrics for a list of IDs and hands back an
+    Excel file. No CG/TG split, no pilot registry, no recurring
+    recalculation -- so no pilot term, frequency, or expected effect.
+    """
+
+    request_name: str
+    submitter_email: str
+    submitter_full_name: str
+    metrics: list[str]
+    filters: dict = field(default_factory=dict)
+    recipient_emails: list[str] = field(default_factory=list)
+    as_of_date: date | None = None
+
+    def effective_date(self) -> date:
+        return self.as_of_date or date.today()
+
+    def slug(self) -> str:
+        safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in self.request_name)
+        return f"{safe}_{self.effective_date().isoformat()}"
+
+    @staticmethod
+    def from_dict(data: dict) -> "CalculationRequest":
+        as_of = data.get("as_of_date")
+        return CalculationRequest(
+            request_name=data["request_name"],
+            submitter_email=data["submitter_email"],
+            submitter_full_name=data["submitter_full_name"],
+            metrics=list(data.get("metrics") or []),
+            filters=dict(data.get("filters") or {}),
+            recipient_emails=list(data.get("recipient_emails") or []),
+            as_of_date=date.fromisoformat(as_of) if as_of else None,
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "request_name": self.request_name,
+            "submitter_email": self.submitter_email,
+            "submitter_full_name": self.submitter_full_name,
+            "metrics": self.metrics,
+            "filters": self.filters,
+            "recipient_emails": self.recipient_emails,
+            "as_of_date": self.effective_date().isoformat(),
+        }
+
+
+@dataclass
+class CalculationResult:
+    request: CalculationRequest
+    output_folder: str
+    result_file: str
+    id_count: int
+    # metric code -> how many of the submitted IDs actually came back with a
+    # value. Surfaced because "ran fine, every column blank" is otherwise a
+    # silent failure (wrong filters, IDs absent from the source table, ...).
+    coverage: dict[str, int] = field(default_factory=dict)
+    rejected_ids: list[ValidationIssue] = field(default_factory=list)
+
+
+@dataclass
 class SplitResult:
     control: list[str]
     target: list[str]

@@ -48,8 +48,13 @@ def validate_inn(raw: str, check_control_digits: bool = True) -> ValidationIssue
     return None
 
 
+SUPPORTED_INPUT_SUFFIXES = (".csv", ".xlsx")
+
+
 def load_inn_column(path: Path) -> list[str]:
-    """Reads the `inn` column from a CSV input file (UTF-8 or cp1251)."""
+    """Reads the `inn` column from a .csv (UTF-8 or cp1251) or .xlsx file."""
+    if path.suffix.lower() == ".xlsx":
+        return _load_inn_column_xlsx(path)
     for encoding in ("utf-8-sig", "cp1251"):
         try:
             with open(path, newline="", encoding=encoding) as f:
@@ -63,6 +68,59 @@ def load_inn_column(path: Path) -> list[str]:
     raise ValueError(f"could not decode {path} as utf-8 or cp1251")
 
 
+def _load_inn_column_xlsx(path: Path) -> list[str]:
+    """Reads the `inn` column from the first sheet of an .xlsx workbook.
+
+    Excel stores all-digit IDs as numbers, so a 10-digit INN comes back as
+    an int (and, if the cell was ever formatted as a float, as something
+    like 8319323530.0). Both are normalised back to their digit string
+    here rather than being reported as invalid downstream.
+    """
+    try:
+        from openpyxl import load_workbook
+    except ImportError as exc:  # pragma: no cover - exercised only without openpyxl
+        raise ValueError(
+            f"reading {path.name} requires openpyxl (pip install openpyxl), "
+            "or supply the ID list as .csv instead"
+        ) from exc
+
+    try:
+        workbook = load_workbook(path, read_only=True, data_only=True)
+    except Exception as exc:  # BadZipFile, KeyError, openpyxl's own errors...
+        # Mislabeled files are common (a .csv or .xls renamed to .xlsx), so
+        # report it as a normal validation issue rather than a raw traceback.
+        raise ValueError(
+            f"{path.name} is not a readable .xlsx workbook ({type(exc).__name__}); "
+            "re-save it as real Excel .xlsx, or submit the list as .csv"
+        ) from exc
+    sheet = workbook.active
+    rows = sheet.iter_rows(values_only=True)
+    try:
+        header = next(rows)
+    except StopIteration:
+        raise ValueError("empty file") from None
+
+    fieldnames = [str(c).strip() if c is not None else "" for c in header]
+    col_index = fieldnames.index(_find_inn_column(fieldnames))
+    values: list[str] = []
+    for row in rows:
+        if row is None or col_index >= len(row):
+            continue
+        values.append(_normalise_cell(row[col_index]))
+    workbook.close()
+    return values
+
+
+def _normalise_cell(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    if isinstance(value, int):
+        return str(value)
+    return str(value).strip()
+
+
 def _find_inn_column(fieldnames: list[str]) -> str:
     for name in fieldnames:
         if name.strip().lower() in ("inn", "инн"):
@@ -73,12 +131,16 @@ def _find_inn_column(fieldnames: list[str]) -> str:
 
 
 def validate_file(path: Path, check_control_digits: bool = True) -> ValidationResult:
-    if path.suffix.lower() not in (".csv",):
+    if path.suffix.lower() not in SUPPORTED_INPUT_SUFFIXES:
         return ValidationResult(
             valid_inns=[],
             issues=[
                 ValidationIssue(
-                    inn="", reason=f"unsupported file format '{path.suffix}', expected .csv"
+                    inn="",
+                    reason=(
+                        f"unsupported file format '{path.suffix}', expected one of "
+                        f"{', '.join(SUPPORTED_INPUT_SUFFIXES)}"
+                    ),
                 )
             ],
         )

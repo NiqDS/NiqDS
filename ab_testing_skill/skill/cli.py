@@ -26,10 +26,11 @@ import sys
 from datetime import date
 from pathlib import Path
 
+from .calc_pipeline import CalculationRejected, NoMetricsSelectedError, run_calculation
 from .config import default_config
 from .inn_utils import validate_file
 from .metrics.runner import MetricRunner
-from .models import PilotRequest
+from .models import CalculationRequest, PilotRequest
 from .monitoring import run_recalculation
 from .pipeline import IntakeRejected, NoEligibleClientsError, run_intake
 
@@ -134,6 +135,64 @@ def _cmd_recalc(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_calc(args: argparse.Namespace) -> int:
+    """Metrics-calculation product: ID file + selected metrics -> Excel."""
+    request_data = json.loads(Path(args.request).read_text(encoding="utf-8"))
+    request = CalculationRequest.from_dict(request_data)
+    config = default_config()
+    try:
+        result = run_calculation(
+            request,
+            Path(args.id_file),
+            config=config,
+            drop_invalid_ids=args.drop_invalid_ids,
+        )
+    except CalculationRejected as exc:
+        print(
+            json.dumps(
+                {"status": "rejected", "issues": [dataclasses.asdict(i) for i in exc.issues]},
+                default=_json_default,
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 1
+    except (NoMetricsSelectedError, KeyError, ValueError) as exc:
+        print(json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False, indent=2))
+        return 1
+
+    print(
+        json.dumps(
+            {"status": "ok", "result": dataclasses.asdict(result)},
+            default=_json_default,
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def _cmd_filters(args: argparse.Namespace) -> int:
+    config = default_config()
+    runner = MetricRunner(config.metrics)
+    try:
+        filters_module = runner._import_script("filters.py")
+    except ModuleNotFoundError:
+        print(json.dumps({"status": "error", "detail": "this script bank has no filters.py"}, indent=2))
+        return 1
+    defs = (
+        filters_module.filters_for_metric(args.metric)
+        if args.metric
+        else filters_module.list_filters()
+    )
+    print(
+        json.dumps(
+            [dataclasses.asdict(d) for d in defs.values()], ensure_ascii=False, indent=2
+        )
+    )
+    return 0
+
+
 def _cmd_metrics(args: argparse.Namespace) -> int:
     config = default_config()
     runner = MetricRunner(config.metrics)
@@ -164,6 +223,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_recalc.add_argument("--pilot-folder", required=True)
     p_recalc.add_argument("--as-of", help="YYYY-MM-DD, defaults to today")
     p_recalc.set_defaults(func=_cmd_recalc)
+
+    p_calc = sub.add_parser(
+        "calc", help="Calculate selected metrics for an uploaded ID list (.xlsx or .csv)"
+    )
+    p_calc.add_argument("--request", required=True, help="Path to calc request JSON (see web/metrics_calc.html)")
+    p_calc.add_argument("--id-file", required=True, help="Path to the uploaded ID list (.xlsx or .csv)")
+    p_calc.add_argument(
+        "--drop-invalid-ids",
+        action="store_true",
+        help="Drop IDs that fail validation instead of rejecting the whole file.",
+    )
+    p_calc.set_defaults(func=_cmd_calc)
+
+    p_filters = sub.add_parser("filters", help="List filters available from the script bank")
+    p_filters.add_argument("--metric", help="Only filters that apply to this metric code")
+    p_filters.set_defaults(func=_cmd_filters)
 
     p_metrics = sub.add_parser("metrics", help="List available metrics from the script bank catalog")
     p_metrics.add_argument("--usable-as", choices=["grouping", "financial_effect"], default=None)

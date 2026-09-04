@@ -41,11 +41,21 @@ def test_validate_file_flags_duplicates_within_file(tmp_path: Path):
 
 
 def test_validate_file_rejects_wrong_extension(tmp_path: Path):
-    path = tmp_path / "inns.xlsx"
+    path = tmp_path / "inns.txt"
     path.write_text("not really a csv", encoding="utf-8")
     result = validate_file(path)
     assert not result.ok
     assert "unsupported file format" in result.issues[0].reason
+
+
+def test_validate_file_reports_mislabeled_xlsx_cleanly(tmp_path: Path):
+    """A .csv renamed to .xlsx must produce a validation issue, not a raw
+    BadZipFile traceback out of openpyxl."""
+    path = tmp_path / "inns.xlsx"
+    path.write_text("inn\n7707083893\n", encoding="utf-8")
+    result = validate_file(path)
+    assert not result.ok
+    assert "not a readable .xlsx workbook" in result.issues[0].reason
 
 
 def test_validate_file_missing_inn_column(tmp_path: Path):
