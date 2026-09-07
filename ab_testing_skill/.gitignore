@@ -7,3 +7,4 @@ data/pilots/*
 !data/pilots/.gitkeep
 data/navigator_dropzone/
 data/calculations/
+data/registry/

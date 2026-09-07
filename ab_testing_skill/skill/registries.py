@@ -205,10 +205,17 @@ def check_and_register(
 
     for inn in inn_list:
         records = existing_by_inn.get(inn, [])
+        # Д9: two date ranges overlap only when EACH starts before the other
+        # ends. Checking just `existing.valid_to >= new.valid_from` made any
+        # pilot scheduled for the future block a pilot running today, since
+        # its valid_to is trivially later -- and scheduling pilots ahead is
+        # normal practice.
         conflict_records = [
             r
             for r in records
-            if r.role in blocking_roles and _parse_date(r.valid_to) >= request.valid_from
+            if r.role in blocking_roles
+            and _parse_date(r.valid_to) >= request.valid_from
+            and _parse_date(r.valid_from) <= request.valid_to
         ]
         if not conflict_records:
             available.append(inn)
@@ -347,6 +354,36 @@ def check_master_status(
     available = [inn for inn in inn_list if statuses[inn] not in blocking_statuses]
     blocked = [inn for inn in inn_list if statuses[inn] in blocking_statuses]
     return available, blocked
+
+
+def finalize_roles(
+    involved: InvolvedInnsRegistry, roles_by_inn: dict[str, str], pilot_name: str
+) -> None:
+    """Assigns every pending role for a pilot in ONE file rewrite.
+
+    The per-INN `finalize_role` below loaded and rewrote the whole registry
+    for each client, so a split of N clients over a registry of M rows cost
+    N x M -- the auditor measured 4.39s for 200 INNs against 2,000 rows,
+    which extrapolates to tens of minutes at realistic sizes, on top of the
+    per-call network round trips that made runs on NFS look frozen. This is
+    the same batching already applied to `append`/`append_many`.
+    """
+    if not roles_by_inn:
+        return
+    rows = involved.load()
+    remaining = dict(roles_by_inn)
+    for rec in rows:
+        if not remaining:
+            break
+        if rec.pilot_name == pilot_name and rec.role == ROLE_PENDING and rec.inn in remaining:
+            rec.role = remaining.pop(rec.inn)
+
+    header = [f.name for f in fields(InvolvedInnRecord)]
+    with open(involved.path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=header)
+        writer.writeheader()
+        for rec in rows:
+            writer.writerow(asdict(rec))
 
 
 def finalize_role(

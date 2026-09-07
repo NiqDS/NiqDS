@@ -21,8 +21,8 @@ def _write_request_json(path: Path, **overrides) -> Path:
         "analyst_email": "analyst@bank.internal",
         "expected_effect_pct": 5.0,
         "recalculation_frequency": "month",
-        "grouping_metrics": [],
-        "financial_effect_articles": [],
+        "grouping_metrics": ["okved"],
+        "financial_effect_articles": ["chod"],
         "custom_metric_requests": [],
     }
     data.update(overrides)

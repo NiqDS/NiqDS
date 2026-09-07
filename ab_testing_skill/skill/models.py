@@ -182,6 +182,8 @@ class SplitResult:
     balance_report: dict[str, dict[str, float]]
     attempts_used: int
     balanced: bool
+    # recorded so a split can be reproduced/audited after the fact
+    seed: int | None = None
 
 
 @dataclass
@@ -194,3 +196,8 @@ class PilotResult:
     financial_effect_file: str | None
     duplicate_findings: list[OverlapFinding]
     rejected_inns: list[ValidationIssue]
+    # Д15: metric code -> how many of the split clients the reference data
+    # actually resolved. Without this, INNs missing from the source silently
+    # collapse into a single `None` stratum and never reach the balance
+    # report, so the run looks clean while the split is effectively random.
+    coverage: dict[str, int] = field(default_factory=dict)

@@ -31,8 +31,14 @@ from .config import default_config
 from .inn_utils import validate_file
 from .metrics.runner import MetricRunner
 from .models import CalculationRequest, PilotRequest
-from .monitoring import run_recalculation
-from .pipeline import IntakeRejected, NoEligibleClientsError, run_intake
+from .monitoring import AlreadyCalculatedError, RecalculationNotDueError, run_recalculation
+from .pipeline import (
+    IntakeRejected,
+    NoEligibleClientsError,
+    PilotAlreadyExistsError,
+    run_intake,
+)
+from .validation import RequestValidationError
 
 
 def _json_default(obj):
@@ -92,7 +98,33 @@ def _cmd_run(args: argparse.Namespace) -> int:
             return 1
 
     try:
-        result = run_intake(request, inn_file, config=config)
+        result = run_intake(request, inn_file, config=config, force=args.force)
+    except RequestValidationError as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "invalid_request",
+                    "issues": [dataclasses.asdict(i) for i in exc.issues],
+                },
+                default=_json_default,
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 1
+    except PilotAlreadyExistsError as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "pilot_already_exists",
+                    "pilot_folder": exc.pilot_folder,
+                    "detail": str(exc),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 1
     except IntakeRejected as exc:
         print(
             json.dumps(
@@ -116,6 +148,15 @@ def _cmd_run(args: argparse.Namespace) -> int:
             )
         )
         return 1
+    except Exception as exc:  # noqa: BLE001 - the CLI contract is "always JSON on stdout"
+        print(
+            json.dumps(
+                {"status": "error", "error_type": type(exc).__name__, "detail": str(exc)},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 1
     print(
         json.dumps(
             {"status": "ok", "result": dataclasses.asdict(result)},
@@ -130,7 +171,30 @@ def _cmd_run(args: argparse.Namespace) -> int:
 def _cmd_recalc(args: argparse.Namespace) -> int:
     config = default_config()
     as_of = date.fromisoformat(args.as_of) if args.as_of else None
-    path = run_recalculation(Path(args.pilot_folder), config=config, as_of_date=as_of)
+    try:
+        path = run_recalculation(
+            Path(args.pilot_folder), config=config, as_of_date=as_of, force=args.force
+        )
+    except (RecalculationNotDueError, AlreadyCalculatedError) as exc:
+        # Not an error for a scheduler firing more often than the pilot's
+        # cadence -- the expected outcome is "nothing to do".
+        print(
+            json.dumps(
+                {"status": "skipped", "reason": type(exc).__name__, "detail": str(exc)},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    except Exception as exc:  # noqa: BLE001 - CLI contract is JSON on stdout
+        print(
+            json.dumps(
+                {"status": "error", "error_type": type(exc).__name__, "detail": str(exc)},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 1
     print(json.dumps({"status": "ok", "financial_effect_file": str(path)}, indent=2))
     return 0
 
@@ -152,6 +216,15 @@ def _cmd_calc(args: argparse.Namespace) -> int:
             json.dumps(
                 {"status": "rejected", "issues": [dataclasses.asdict(i) for i in exc.issues]},
                 default=_json_default,
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 1
+    except RequestValidationError as exc:
+        print(
+            json.dumps(
+                {"status": "invalid_request", "issues": [dataclasses.asdict(i) for i in exc.issues]},
                 ensure_ascii=False,
                 indent=2,
             )
@@ -217,11 +290,21 @@ def build_parser() -> argparse.ArgumentParser:
             "Writes the filtered list to <inn-file stem>_cleaned.csv."
         ),
     )
+    p_run.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-run a pilot whose folder already exists (otherwise refused, see Д3).",
+    )
     p_run.set_defaults(func=_cmd_run)
 
     p_recalc = sub.add_parser("recalc", help="Run one recalculation pass for an existing pilot")
     p_recalc.add_argument("--pilot-folder", required=True)
     p_recalc.add_argument("--as-of", help="YYYY-MM-DD, defaults to today")
+    p_recalc.add_argument(
+        "--force",
+        action="store_true",
+        help="Recalculate even if not due, or replace an already-calculated report_date.",
+    )
     p_recalc.set_defaults(func=_cmd_recalc)
 
     p_calc = sub.add_parser(

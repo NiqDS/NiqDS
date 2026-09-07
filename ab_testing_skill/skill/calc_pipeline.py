@@ -20,6 +20,7 @@ from .exporter import write_metrics_result
 from .inn_utils import validate_file
 from .metrics.runner import MetricRunner
 from .models import CalculationRequest, CalculationResult, ValidationIssue
+from .validation import validate_calculation_request
 
 
 class CalculationRejected(Exception):
@@ -45,15 +46,12 @@ def run_calculation(
     strict_inn_checksum: bool = True,
 ) -> CalculationResult:
     config = config or default_config()
+    runner = MetricRunner(config.metrics)
+
+    # Validate everything derivable from the request before touching disk.
     if not request.metrics:
         raise NoMetricsSelectedError("select at least one metric to calculate")
-
-    runner = MetricRunner(config.metrics)
-    unknown = [m for m in request.metrics if m not in runner.manifest]
-    if unknown:
-        raise KeyError(
-            f"unknown metric(s) {unknown} -- known metrics: {sorted(runner.manifest)}"
-        )
+    validate_calculation_request(request, known_metrics=set(runner.manifest))
     _validate_filters(runner, request)
 
     # --- Step 1: read + validate the uploaded ID list (.xlsx or .csv) ----

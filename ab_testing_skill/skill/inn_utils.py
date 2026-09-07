@@ -35,6 +35,25 @@ def is_valid_checksum(inn: str) -> bool:
     return False
 
 
+def _length_reason(value: str) -> str:
+    """Д11: name the actual cause when the length is one digit short.
+
+    By far the most common way a valid INN arrives at 9 or 11 digits is
+    Excel: an all-digit cell is stored as a number, so a leading zero is
+    dropped on save. Telling the submitter "unexpected length 9" sends them
+    hunting for a data-quality problem that is really a formatting one, so
+    the fix is spelled out instead.
+    """
+    base = f"unexpected length {len(value)} (expected 10 or 12)"
+    if len(value) in (9, 11):
+        return (
+            f"{base} -- if this INN starts with 0, Excel dropped the leading zero when "
+            f"the file was saved (0{value} would be {len(value) + 1} digits). Format the "
+            "column as Text (Формат ячеек -> Текстовый) before saving, or export as CSV."
+        )
+    return base
+
+
 def validate_inn(raw: str, check_control_digits: bool = True) -> ValidationIssue | None:
     value = raw.strip()
     if not value:
@@ -42,7 +61,7 @@ def validate_inn(raw: str, check_control_digits: bool = True) -> ValidationIssue
     if not value.isdigit():
         return ValidationIssue(inn=raw, reason="contains non-digit characters")
     if len(value) not in (10, 12):
-        return ValidationIssue(inn=raw, reason=f"unexpected length {len(value)} (expected 10 or 12)")
+        return ValidationIssue(inn=raw, reason=_length_reason(value))
     if check_control_digits and not is_valid_checksum(value):
         return ValidationIssue(inn=raw, reason="failed FNS control-digit checksum")
     return None
@@ -115,10 +134,26 @@ def _normalise_cell(value) -> str:
     if value is None:
         return ""
     if isinstance(value, float) and value.is_integer():
-        return str(int(value))
+        return _restore_leading_zero(str(int(value)))
     if isinstance(value, int):
-        return str(value)
+        return _restore_leading_zero(str(value))
     return str(value).strip()
+
+
+def _restore_leading_zero(digits: str) -> str:
+    """Д11: put back the zero Excel dropped, but only when provably right.
+
+    Only numeric cells reach here, so a 9- or 11-digit value cannot be a
+    genuine INN -- it is one digit short. Zero-padding is applied only if
+    the padded value passes the FNS checksum, which makes a wrong guess
+    about a 1-in-10 proposition essentially impossible; anything else is
+    left alone and reported by `validate_inn` with the explanation above.
+    """
+    if len(digits) in (9, 11):
+        padded = "0" + digits
+        if is_valid_checksum(padded):
+            return padded
+    return digits
 
 
 def _find_inn_column(fieldnames: list[str]) -> str:

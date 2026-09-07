@@ -29,9 +29,10 @@ from .registries import (
     OverlapRegistry,
     check_and_register,
     check_master_status,
-    finalize_role,
+    finalize_roles,
 )
 from .splitter import split
+from .validation import validate_pilot_request
 
 
 class IntakeRejected(Exception):
@@ -45,6 +46,25 @@ class IntakeRejected(Exception):
     def __init__(self, issues: list[ValidationIssue]):
         self.issues = issues
         super().__init__(f"{len(issues)} issue(s) found in the submitted INN file")
+
+
+class PilotAlreadyExistsError(Exception):
+    """This pilot has already been run (Д3).
+
+    Same name + same dates produce the same folder, so a rerun used to
+    merge into the previous run's files while the first run's registered
+    INNs blocked the second run as conflicts. Re-running is allowed only
+    with an explicit force flag.
+    """
+
+    def __init__(self, pilot_folder: str):
+        self.pilot_folder = pilot_folder
+        super().__init__(
+            f"pilot folder already exists: {pilot_folder}. "
+            "Re-running would append to the previous run's files and the first run's own "
+            "INNs would block this one. Pass force=True (CLI: --force) to overwrite "
+            "deliberately, or change the pilot name/dates."
+        )
 
 
 class NoEligibleClientsError(Exception):
@@ -76,11 +96,19 @@ def run_intake(
     email_connector: EmailConnector | None = None,
     dashboard_connector: DashboardConnector | None = None,
     strict_inn_checksum: bool = True,
+    force: bool = False,
 ) -> PilotResult:
     config = config or default_config()
     default_email, default_dashboard = build_default_connectors(config)
     email_connector = email_connector or default_email
     dashboard_connector = dashboard_connector or default_dashboard
+
+    # --- Step 0: validate the request before ANY side effect -------------
+    # Nothing below this point is undoable (registry rows, pilot folder,
+    # emails), and there is no rollback -- so every check that can be made
+    # from the request alone is made here, first.
+    runner = MetricRunner(config.metrics)
+    validate_pilot_request(request, known_metrics=set(runner.manifest))
 
     # --- Step 1: format + INN validity -----------------------------------
     validation = validate_file(Path(inn_file), check_control_digits=strict_inn_checksum)
@@ -88,6 +116,11 @@ def run_intake(
         raise IntakeRejected(validation.issues)
 
     pilot_folder = config.storage.pilots_root / request.slug()
+    # Д3: a rerun with the same name and dates resolves to the same folder,
+    # which used to append to the previous run's financial_effect file while
+    # the first run's own INNs blocked the second as "already in a pilot".
+    if pilot_folder.exists() and not force:
+        raise PilotAlreadyExistsError(str(pilot_folder))
     pilot_folder.mkdir(parents=True, exist_ok=True)
 
     # --- Step 1a (NEW, not in original spec): raw submission to the analyst only ---
@@ -186,20 +219,25 @@ def run_intake(
         )
 
     # --- Step 4: compute grouping attributes, split, export, notify ------
-    runner = MetricRunner(config.metrics)
     today = date.today()
     grouping_values = runner.run_many(request.grouping_metrics, available, today)
     financial_values = runner.run_many(request.financial_effect_articles, available, today)
+
+    coverage = {
+        metric: sum(1 for inn in available if per_inn.get(inn) is not None)
+        for metric, per_inn in {**grouping_values, **financial_values}.items()
+    }
 
     split_result = split(available, grouping_values, financial_values, config.split)
 
     control_path = write_group_file(pilot_folder, "control_group", split_result.control)
     target_path = write_group_file(pilot_folder, "target_group", split_result.target)
 
-    for inn in split_result.control:
-        finalize_role(involved, inn, request.pilot_name, "cg")
-    for inn in split_result.target:
-        finalize_role(involved, inn, request.pilot_name, "tg")
+    finalize_roles(
+        involved,
+        {inn: "cg" for inn in split_result.control} | {inn: "tg" for inn in split_result.target},
+        pilot_name=request.pilot_name,
+    )
 
     master_status.upsert_many(
         {inn: "Used_as_cg" for inn in split_result.control}
@@ -233,7 +271,7 @@ def run_intake(
     package_attachments = [control_path, target_path]
     if financial_effect_path:
         package_attachments.append(financial_effect_path)
-    package_body = _format_pilot_package(request, split_result)
+    package_body = _format_pilot_package(request, split_result, coverage, len(available))
     email_connector.send(
         OutgoingEmail(
             to=[config.notify.dev_team_email],
@@ -262,6 +300,7 @@ def run_intake(
         financial_effect_file=str(financial_effect_path) if financial_effect_path else None,
         duplicate_findings=blocked,
         rejected_inns=validation.issues,
+        coverage=coverage,
     )
 
 
@@ -335,7 +374,10 @@ def _format_result_summary(request: PilotRequest, split_result) -> str:
     )
 
 
-def _format_pilot_package(request: PilotRequest, split_result) -> str:
+def _format_pilot_package(
+    request: PilotRequest, split_result, coverage: dict[str, int], candidate_count: int
+) -> str:
+    lines = _coverage_lines(coverage, candidate_count)
     return "\n".join(
         [
             f"Pilot name: {request.pilot_name}",
@@ -347,7 +389,22 @@ def _format_pilot_package(request: PilotRequest, split_result) -> str:
             f"Financial effect articles measured: {', '.join(request.financial_effect_articles) or '(none)'}",
             f"Control group size: {len(split_result.control)}",
             f"Target group size: {len(split_result.target)}",
-            f"Balance check: {'PASSED' if split_result.balanced else 'NOT balanced'} "
-            f"(attempts: {split_result.attempts_used})",
+            f"Balance check (SMD <= {0.1}): {'PASSED' if split_result.balanced else 'NOT balanced'} "
+            f"(attempts: {split_result.attempts_used}, seed: {split_result.seed})",
+            "",
+            *lines,
         ]
     )
+
+
+def _coverage_lines(coverage: dict[str, int], candidate_count: int) -> list[str]:
+    """Reference-data coverage per metric, so a partially-covered source is
+    visible instead of silently producing a `None` stratum."""
+    if not coverage or not candidate_count:
+        return []
+    lines = ["Coverage (clients resolved by the source, of {}):".format(candidate_count)]
+    for metric, filled in sorted(coverage.items()):
+        pct = 100.0 * filled / candidate_count
+        flag = "  <-- LOW, split/balance on this metric is unreliable" if pct < 95 else ""
+        lines.append(f"  {metric}: {filled}/{candidate_count} ({pct:.1f}%){flag}")
+    return lines

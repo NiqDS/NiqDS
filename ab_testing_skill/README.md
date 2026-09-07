@@ -433,3 +433,36 @@ skew the overall CG/TG ratio even though each stratum itself is correctly
 balanced. For small pilots, either select fewer grouping metrics in step 3
 or expect a real overall ratio (not the requested `target_ratio`) and rely
 on the balance report per stratum instead of the aggregate count.
+
+## External audit: what changed (wave 1)
+
+An external audit of the MVP raised 16 defects (Д1–Д16). Every one that
+was still reproducible on the code at the time has been fixed; each has a
+named regression test in `tests/test_audit_regressions.py` that replays the
+auditor's own scenario, so reintroducing the defect fails a test carrying
+its ID.
+
+| ID | Defect | Fix |
+|----|--------|-----|
+| Д1 | A negative control mean made *every* split report "balanced" — `abs()` sat in the numerator only, so the ratio went negative and passed `<= threshold`. Routine for ЧОД/ЧЭП on loss-making clients. | Balance is now the **standardized mean difference** (`\|mean_T − mean_C\| / pooled SD`), which cannot be negative and is scale-free. Threshold `SplitConfig.max_standardized_diff = 0.10`, the conventional cutoff. |
+| Д2 | A scheduler firing more often than a pilot's cadence appended a duplicate block of rows each time (auditor: 50 rows → 200, all one `report_date`), which Navigator charts as a 4× effect. | `run_recalculation()` now calls `is_due()` itself and refuses a `report_date` it already holds (`RecalculationNotDueError` / `AlreadyCalculatedError`). `--force` overrides. |
+| Д3 | Re-running an existing pilot name silently overwrote the pilot folder. | `PilotAlreadyExistsError`, `--force` to override. |
+| Д4 | A request with no metrics selected produced a pilot that could not be analysed. | `skill/validation.py` runs as step 0 of `run_intake` — dates, emails, frequency, ≥1 grouping metric **and** ≥1 financial article, metric codes present in the manifest, positive expected effect. Raised **before** any file or registry write. |
+| Д6 | `finalize_role` reopened the registry twice per INN; on NFS a 50-INN pilot looked frozen. | `append_many()` / `finalize_roles()` — one open per batch. 4.39s → 0.032s in the reproduction. |
+| Д7/Д8 | Failures surfaced as tracebacks the calling agent could not act on. | The CLI reports every error as structured JSON with a `status` field and a non-zero exit code. |
+| Д9 | A pilot scheduled to *start* next year blocked candidates today: the overlap check only compared `valid_to`. | Overlap now requires both ends to intersect. |
+| Д10 | The web form read the uploaded CSV as UTF-8 and re-downloaded the decoded string, so every cp1251 export (what Russian Excel produces) came back with `ИНН` as replacement characters and the column could not be found. | The form keeps the uploaded **bytes** and hands them over untouched; decoding happens only for the on-screen preview, UTF-8 first with a cp1251 fallback. `.xlsx` uploads keep their extension. |
+| Д11 | Excel stores an all-digit cell as a number, so an INN with a leading zero came back 9 digits and was rejected as "unexpected length 9". | Exports set the `codes` column to Excel text format (`@`) so the zero survives a round trip; on input, a 9/11-digit numeric cell is zero-padded when (and only when) the padded value passes the FNS checksum; otherwise the error message names the actual cause and the fix. |
+| Д12 | Registries were written into `sample_data/`, i.e. into git — bundled reference data got overwritten by real runs. | Default registry paths moved to `data/registry/` (gitignored). `sample_data/` is now read-only reference. |
+| Д13 | A crafted value in the ID column (`=cmd\|'/c calc'!A1`) was written verbatim and executed when the analyst opened the export. | Cells starting with `= + - @ \t \r` are escaped on write and unescaped on read, so append mode stays lossless. Numbers, dates and negative values are untouched. |
+| Д14 | If openpyxl was installed or removed between runs, a pilot ended up with both `financial_effect.csv` and `financial_effect.xlsx` — one being read while the other grew. | An existing export's extension wins over the environment's preference. |
+| Д15 | Nothing said how much of the reference data was actually populated, so a split on a 30%-covered metric looked identical to a fully covered one. | `PilotResult.coverage` per metric; the analytics package flags anything under 95% as unreliable to split on. |
+| Д16 | The outbox counter restarted per run, so a second run into the same outbox silently overwrote the first run's audit trail. | Filenames carry a timestamp plus a collision suffix. |
+
+Two audit points were **not** actioned, deliberately:
+
+- **Н8 ("no dialogue agent")** — the hand-off is a static form plus a CLI
+  by design, so the skill runs unattended in GigaCode and in a scheduler;
+  see "Why an HTML request-builder, not a hosted web app" above.
+- **Д5** — not reproducible here; it exists only in the renamed
+  (`internal_skill`) fork, where the package rename was applied partially.

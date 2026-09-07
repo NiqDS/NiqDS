@@ -24,26 +24,95 @@ except ImportError:  # pragma: no cover - exercised in restricted environments
     _HAS_OPENPYXL = False
 
 
+#: Leading characters Excel/LibreOffice treat as the start of a formula.
+#: A cell beginning with one of these is executed on open, so a value like
+#: ``=cmd|'/c calc'!A1`` arriving from an uploaded list would run when the
+#: analyst opens the exported workbook. Values are prefixed with an escape
+#: sentinel on write and unprefixed again on read.
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+_ESCAPE_SENTINEL = "'"
+
+
+def _escape_cell(value: Any) -> Any:
+    """Neutralise spreadsheet formula injection (Д13).
+
+    Only ever touches strings that start with a formula trigger; numbers,
+    dates and None pass through untouched, so INNs (digits), report dates
+    and metric values are unaffected. Negative numbers are safe because
+    they arrive as numeric types, not as strings beginning with "-".
+    """
+    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+        return _ESCAPE_SENTINEL + value
+    return value
+
+
+def _unescape_cell(value: Any) -> Any:
+    """Inverse of `_escape_cell`, so append-mode round-trips are lossless."""
+    if (
+        isinstance(value, str)
+        and value.startswith(_ESCAPE_SENTINEL)
+        and value[1:].startswith(_FORMULA_PREFIXES)
+    ):
+        return value[1:]
+    return value
+
+
 def resolve_export_path(stem: Path) -> Path:
+    """Path a given export lives at, keeping a pilot's extension stable (Д14).
+
+    `_HAS_OPENPYXL` is an environment property, not a per-pilot one: if
+    openpyxl gets installed (or removed) between the intake run and a later
+    recalculation, a pilot that already has `financial_effect.csv` would
+    start writing `financial_effect.xlsx` beside it. Everything downstream
+    -- append mode, `read_codes_file`, the Navigator upload -- then reads
+    one file while the other keeps growing. An existing file therefore wins
+    over the environment's preference.
+    """
+    for suffix in (".xlsx", ".csv"):
+        candidate = stem.with_suffix(suffix)
+        if candidate.exists():
+            return candidate
     return stem.with_suffix(".xlsx") if _HAS_OPENPYXL else stem.with_suffix(".csv")
 
 
 def _write_rows(stem: Path, header: list[str], rows: list[list[Any]]) -> Path:
     stem.parent.mkdir(parents=True, exist_ok=True)
     path = resolve_export_path(stem)
-    if _HAS_OPENPYXL:
+    if path.suffix == ".xlsx" and not _HAS_OPENPYXL:
+        raise RuntimeError(
+            f"{path} already exists but openpyxl is not installed, so it cannot be "
+            "updated. Install openpyxl (pip install openpyxl) rather than letting "
+            "this pilot end up with both a .xlsx and a .csv export."
+        )
+    if path.suffix == ".xlsx":
         wb = Workbook()
         ws = wb.active
         ws.append(header)
         for row in rows:
-            ws.append(row)
+            ws.append([_escape_cell(v) for v in row])
+        _format_codes_column_as_text(ws, header)
         wb.save(path)
     else:
         with open(path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(header)
-            writer.writerows(rows)
+            writer.writerows([_escape_cell(v) for v in row] for row in rows)
     return path
+
+
+def _format_codes_column_as_text(ws, header: list[str]) -> None:
+    """Force the INN column to Excel's text format (Д11).
+
+    Without this, an analyst who opens the export and re-saves it gets the
+    codes back as numbers: leading zeros vanish (a 10-digit INN becomes 9
+    digits) and long values can render as 8,31932E+09. Resubmitting that
+    file then fails validation on rows that were perfectly valid on export.
+    """
+    if "codes" not in header:
+        return
+    col = header.index("codes") + 1
+    for (cell,) in ws.iter_rows(min_row=2, min_col=col, max_col=col):
+        cell.number_format = "@"
 
 
 def _read_rows(path: Path) -> tuple[list[str], list[list[Any]]]:
@@ -56,13 +125,13 @@ def _read_rows(path: Path) -> tuple[list[str], list[list[Any]]]:
         if not all_rows:
             return [], []
         header = [str(c) for c in all_rows[0]]
-        body = [list(r) for r in all_rows[1:]]
+        body = [[_unescape_cell(c) for c in r] for r in all_rows[1:]]
         return header, body
     with open(path, newline="", encoding="utf-8") as f:
         all_rows = list(csv.reader(f))
     if not all_rows:
         return [], []
-    return all_rows[0], all_rows[1:]
+    return all_rows[0], [[_unescape_cell(c) for c in row] for row in all_rows[1:]]
 
 
 def write_group_file(pilot_folder: Path, group_name: str, inn_list: list[str]) -> Path:

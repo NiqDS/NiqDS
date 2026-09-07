@@ -72,7 +72,7 @@ def test_master_status_blocks_used_but_allows_used_as_cg_and_unused(scratch_conf
         only_used = tmp_path / "only_used.csv"
         only_used.write_text(f"inn\n{used_inn}\n", encoding="utf-8")
         run_intake(
-            _request(pilot_name="blocked_pilot", grouping_metrics=[], financial_effect_articles=[]),
+            _request(pilot_name="blocked_pilot"),
             only_used,
             config=scratch_config,
             email_connector=LoggingEmailConnector(tmp_path / "outbox_blocked"),
@@ -82,7 +82,7 @@ def test_master_status_blocks_used_but_allows_used_as_cg_and_unused(scratch_conf
     inn_file = tmp_path / "inns.csv"
     inn_file.write_text(f"inn\n{used_inn}\n{used_as_cg_inn}\n{unseen_inn}\n", encoding="utf-8")
     result = run_intake(
-        _request(pilot_name="mixed_pilot", grouping_metrics=[], financial_effect_articles=[]),
+        _request(pilot_name="mixed_pilot"),
         inn_file,
         config=scratch_config,
         email_connector=LoggingEmailConnector(tmp_path / "outbox_mixed"),

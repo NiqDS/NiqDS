@@ -35,10 +35,10 @@ def test_split_reshuffles_until_financial_balance_achieved():
     # make value strongly correlated with index parity so a "bad" first split is plausible,
     # but the reshuffle loop should still find a balanced assignment eventually.
     financial = {"chod": {inn: 100.0 + (i % 5) for i, inn in enumerate(inn_list)}}
-    config = SplitConfig(target_ratio=0.5, random_seed=3, max_relative_imbalance=0.02, max_reshuffle_attempts=50)
+    config = SplitConfig(target_ratio=0.5, random_seed=3, max_standardized_diff=0.10, max_reshuffle_attempts=50)
     result = split(inn_list, grouping, financial, config)
     assert result.balanced
-    assert result.balance_report["chod"]["relative_diff"] <= 0.02
+    assert result.balance_report["chod"]["smd"] <= 0.10
 
 
 def test_split_respects_custom_ratio():

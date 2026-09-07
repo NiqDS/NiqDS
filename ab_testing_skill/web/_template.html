@@ -153,8 +153,8 @@
 
     <fieldset>
       <legend>3. Список ИНН (ЦГ-кандидаты)</legend>
-      <label for="inn_file">CSV-файл со столбцом <code>inn</code></label>
-      <input type="file" id="inn_file" accept=".csv" required>
+      <label for="inn_file">CSV- или Excel-файл со столбцом <code>inn</code></label>
+      <input type="file" id="inn_file" accept=".csv,.xlsx" required>
       <div class="file-preview" id="inn_preview"></div>
       <p class="hint">
         Это только предпросмотр в браузере (количество строк, явно некорректные значения).
@@ -225,31 +225,53 @@
 
   const innFileInput = document.getElementById('inn_file');
   const innPreview = document.getElementById('inn_preview');
-  let innFileText = '';
-  let innFileName = 'inn_list.csv';
+  // The uploaded file is kept as raw bytes and handed back to the agent
+  // byte-for-byte. Reading it as UTF-8 text and re-serialising the string
+  // corrupted every cp1251 file Excel produces (the "ИНН" header came back
+  // as U+FFFD replacement characters, so the skill could not find the
+  // column at all). Decoding happens only for the on-screen preview.
+  let innFileBytes = null;
+  let innFileName = '';
+  let innFileExt = '.csv';
+
+  function decodeForPreview(buffer) {
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+    } catch (e) {
+      // Not valid UTF-8 -- the usual case for a Russian Excel CSV export.
+      return new TextDecoder('windows-1251').decode(buffer);
+    }
+  }
 
   innFileInput.addEventListener('change', () => {
     const file = innFileInput.files[0];
-    if (!file) { innPreview.textContent = ''; return; }
+    if (!file) { innPreview.textContent = ''; innFileBytes = null; return; }
     innFileName = file.name;
+    const lower = file.name.toLowerCase();
+    innFileExt = lower.endsWith('.xlsx') ? '.xlsx' : '.csv';
     const reader = new FileReader();
     reader.onload = () => {
-      innFileText = reader.result;
-      const lines = innFileText.split(/\r?\n/).filter(l => l.trim().length > 0);
-      const header = (lines[0] || '').split(',').map(s => s.trim().toLowerCase());
-      const innIdx = header.indexOf('inn');
+      innFileBytes = reader.result;
+      if (innFileExt === '.xlsx') {
+        innPreview.textContent = `Файл: ${file.name} (Excel — предпросмотр строк доступен только для .csv, проверка выполнится агентом).`;
+        return;
+      }
+      const text = decodeForPreview(innFileBytes);
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+      const header = (lines[0] || '').split(/[,;]/).map(s => s.trim().toLowerCase());
+      const innIdx = header.findIndex(h => h === 'inn' || h === 'инн');
       let badCount = 0;
       if (innIdx === -1) {
         innPreview.textContent = `Внимание: в файле не найден столбец "inn" (заголовок: ${lines[0] || '(пусто)'})`;
         return;
       }
       for (let i = 1; i < lines.length; i++) {
-        const cell = (lines[i].split(',')[innIdx] || '').trim();
+        const cell = (lines[i].split(/[,;]/)[innIdx] || '').trim();
         if (!/^\d{10}$|^\d{12}$/.test(cell)) badCount++;
       }
       innPreview.textContent = `Строк: ${lines.length - 1}. Похожих на некорректные ИНН (не 10/12 цифр): ${badCount}.`;
     };
-    reader.readAsText(file, 'utf-8');
+    reader.readAsArrayBuffer(file);
   });
 
   function download(filename, text, mime) {
@@ -267,9 +289,9 @@
     e.preventDefault();
     banner.className = 'banner'; banner.textContent = '';
 
-    if (!innFileText) {
+    if (!innFileBytes) {
       banner.className = 'banner error';
-      banner.textContent = 'Прикрепите CSV-файл со списком ИНН.';
+      banner.textContent = 'Прикрепите файл со списком ИНН (.csv или .xlsx).';
       return;
     }
     const validFrom = document.getElementById('valid_from').value;
@@ -298,19 +320,23 @@
       custom_metric_requests: customMetricRaw ? [customMetricRaw] : []
     };
 
+    const innOutName = 'inn_list' + innFileExt;
     download('request.json', JSON.stringify(request, null, 2), 'application/json');
-    download('inn_list.csv', innFileText, 'text/csv');
+    // Original bytes, not a re-encoded string -- see the comment on
+    // innFileBytes. The extension follows the uploaded file so an .xlsx
+    // list is not handed to the agent named .csv.
+    download(innOutName, innFileBytes, 'application/octet-stream');
 
     banner.className = 'banner ok';
-    banner.textContent = 'Файлы request.json и inn_list.csv скачаны. Смотрите шаги передачи агенту ниже.';
+    banner.textContent = `Файлы request.json и ${innOutName} скачаны (исходный файл «${innFileName}» передан без перекодировки). Смотрите шаги передачи агенту ниже.`;
 
     document.getElementById('cli-command').textContent =
-      'python -m skill.cli run --request request.json --inn-file inn_list.csv';
+      `python -m skill.cli run --request request.json --inn-file ${innOutName}`;
 
     const gigaMessage =
 `Запусти AB-testing skill (ab_testing_skill/) для нового пилота.
-Параметры прикреплены в request.json, список ИНН — в inn_list.csv.
-Выполни: python -m skill.cli run --request request.json --inn-file inn_list.csv
+Параметры прикреплены в request.json, список ИНН — в ${innOutName}.
+Выполни: python -m skill.cli run --request request.json --inn-file ${innOutName}
 Верни мне итоговые файлы control_group / target_group и, если есть, конфликты по уже задействованным ИННкам.`;
     document.getElementById('giga-message').textContent = gigaMessage;
     document.getElementById('handoff-steps').style.display = 'block';

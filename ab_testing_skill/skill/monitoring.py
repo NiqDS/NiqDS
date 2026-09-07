@@ -68,11 +68,55 @@ def _existing_financial_effect_path(pilot_folder: Path) -> Path | None:
     return None
 
 
+class RecalculationNotDueError(Exception):
+    """Called again before the pilot's cadence has elapsed (Д2).
+
+    `is_due` existed but nothing called it, so a cron firing more often
+    than a pilot's frequency appended a duplicate block of rows every time
+    -- the auditor measured 200 rows all stamped with the same report_date
+    after three same-day runs, which Navigator then charts as a 4x effect.
+    """
+
+    def __init__(self, pilot_folder: str, as_of_date: date, frequency: str):
+        self.pilot_folder = pilot_folder
+        super().__init__(
+            f"recalculation for {pilot_folder} is not due on {as_of_date} "
+            f"(frequency: {frequency}). Pass force=True (CLI: --force) to recalculate anyway."
+        )
+
+
+class AlreadyCalculatedError(Exception):
+    """This report_date is already present in the financial-effect file.
+
+    Appending it again would double-count that period in the dashboard.
+    """
+
+    def __init__(self, pilot_folder: str, as_of_date: date):
+        self.pilot_folder = pilot_folder
+        super().__init__(
+            f"{pilot_folder} already has rows for report_date {as_of_date}. "
+            "Appending would double-count this period. Pass force=True (CLI: --force) "
+            "to replace that block instead."
+        )
+
+
+def _existing_report_dates(pilot_folder: Path) -> set[str]:
+    path = _existing_financial_effect_path(pilot_folder)
+    if path is None:
+        return set()
+    header, rows = read_rows(path)
+    if not header or "report_date" not in header:
+        return set()
+    idx = header.index("report_date")
+    return {str(row[idx]) for row in rows if row and row[idx] is not None}
+
+
 def run_recalculation(
     pilot_folder: Path,
     config: SkillConfig | None = None,
     dashboard_connector: DashboardConnector | None = None,
     as_of_date: date | None = None,
+    force: bool = False,
 ) -> Path:
     config = config or default_config()
     dashboard_connector = dashboard_connector or LocalDropzoneDashboardConnector(
@@ -87,6 +131,18 @@ def run_recalculation(
             f"as_of_date {as_of_date} is outside the pilot's active window "
             f"({meta['valid_from']} .. {meta['valid_to']}) -- pilot may have ended"
         )
+
+    # Д2: the schedule check now actually gates the run. A scheduler may
+    # fire more often than any individual pilot's cadence -- that is exactly
+    # the case `is_due` was written for -- so being called too early is
+    # normal and must be a no-op, not a duplicate block of rows.
+    if not force:
+        if as_of_date.isoformat() in _existing_report_dates(pilot_folder):
+            raise AlreadyCalculatedError(str(pilot_folder), as_of_date)
+        if not is_due(pilot_folder, as_of_date=as_of_date):
+            raise RecalculationNotDueError(
+                str(pilot_folder), as_of_date, meta.get("recalculation_frequency", "?")
+            )
 
     control = read_codes_file(pilot_folder / "control_group")
     target = read_codes_file(pilot_folder / "target_group")

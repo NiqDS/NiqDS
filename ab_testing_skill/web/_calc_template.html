@@ -230,10 +230,19 @@
     }
     const reader = new FileReader();
     reader.onload = () => {
-      const lines = String(reader.result).split(/\r?\n/).filter(l => l.trim().length > 0);
+      // Russian Excel exports CSV as cp1251, which decodes to replacement
+      // characters under a hardcoded UTF-8 read; the row count survives but
+      // the filename/header shown to the user would not.
+      let text;
+      try {
+        text = new TextDecoder('utf-8', { fatal: true }).decode(reader.result);
+      } catch (e) {
+        text = new TextDecoder('windows-1251').decode(reader.result);
+      }
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
       idPreview.textContent = `Файл: ${file.name}. Строк (без заголовка): ${Math.max(lines.length - 1, 0)}.`;
     };
-    reader.readAsText(file, 'utf-8');
+    reader.readAsArrayBuffer(file);
   });
 
   function download(filename, text, mime) {

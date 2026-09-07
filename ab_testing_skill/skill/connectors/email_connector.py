@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import smtplib
 from dataclasses import dataclass, field
+from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Protocol
@@ -44,7 +45,19 @@ class LoggingEmailConnector:
     def send(self, message: OutgoingEmail) -> None:
         self.sent.append(message)
         safe_subject = "".join(c if c.isalnum() or c in "-_" else "_" for c in message.subject)[:60]
-        out_path = self.outbox_dir / f"{len(self.sent):04d}_{safe_subject}.eml.txt"
+        # Д16: the counter is per-connector-instance, so two runs pointed at
+        # the same outbox both started at 0001 and the second silently
+        # overwrote the first -- the audit trail of what was sent to whom
+        # disappeared. A timestamp plus a collision suffix makes the name
+        # unique across runs while keeping files sorted chronologically.
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        out_path = self.outbox_dir / f"{stamp}_{len(self.sent):04d}_{safe_subject}.eml.txt"
+        dedupe = 1
+        while out_path.exists():
+            out_path = (
+                self.outbox_dir / f"{stamp}_{len(self.sent):04d}_{safe_subject}_{dedupe}.eml.txt"
+            )
+            dedupe += 1
         lines = [
             f"To: {', '.join(message.to)}",
             f"Subject: {message.subject}",

@@ -113,8 +113,10 @@ def test_no_metrics_selected_is_rejected(calc_config, tmp_path):
 
 
 def test_unknown_metric_is_rejected_before_running(calc_config, tmp_path):
+    from skill.validation import RequestValidationError
+
     id_file = _xlsx_of(_sample_inns(3), tmp_path / "ids.xlsx")
-    with pytest.raises(KeyError, match="unknown metric"):
+    with pytest.raises(RequestValidationError, match="unknown metric"):
         run_calculation(_request(metrics=["tb", "not_a_metric"]), id_file, config=calc_config)
 
 
