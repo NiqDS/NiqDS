@@ -1,0 +1,68 @@
+{% extends "app_base.html" %}
+{% block title %}Send to accountant · Intake Gate{% endblock %}
+{% block content %}
+<h1>Send to your accountant</h1>
+<p class="sub">Pick the documents to bundle, and we'll draft an email with them attached and a note of anything still to fix.</p>
+
+{% if not recent %}
+<div class="card"><p class="muted" style="margin:0;">No scans yet. <a href="/app">Scan a document</a> first, then come back to bundle them.</p></div>
+{% else %}
+<form method="post" action="/draft" id="draftForm">
+  <label for="accountant_email">Accountant's email</label>
+  <input id="accountant_email" name="accountant_email" type="email" required inputmode="email"
+         autocomplete="email" value="{{ accountant_email }}" placeholder="accountant@firm.co.uk">
+
+  <label for="note" style="margin-top:16px;">Add a note (optional)</label>
+  <textarea id="note" name="note" rows="2" placeholder="Anything you want to tell them"
+    style="width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;font-size:15px;font-family:inherit;"></textarea>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin:22px 2px 8px;">
+    <span style="font-weight:700;">Documents <span class="muted" id="count"></span></span>
+    <span style="font-size:13px;">
+      <a href="#" id="selAll">Select all</a> · <a href="#" id="selNone">Clear</a>
+    </span>
+  </div>
+  <p class="muted" style="font-size:12px;margin:0 0 10px;">Up to {{ max_docs }} documents per draft.</p>
+
+  <div style="display:flex;flex-direction:column;gap:10px;">
+    {% for s in recent %}
+    {% set vc = {"ready":"var(--ok)","fix":"var(--block)","unreadable":"var(--warn)","unknown":"var(--warn)"}[s.verdict] %}
+    <label class="card" style="display:flex;align-items:center;gap:12px;padding:13px 15px;cursor:pointer;">
+      <input class="pick" type="checkbox" name="scan_ids" value="{{ s.scan_id }}" checked
+             style="width:20px;height:20px;flex:0 0 auto;accent-color:var(--blue);">
+      <span style="flex:1;">
+        <span style="font-weight:650;">{{ s.doc_type.replace("_"," ").title() }}</span><br>
+        <span class="muted" style="font-size:12px;">{{ s.created_at.replace("T"," ") }} UTC</span>
+      </span>
+      <span style="color:{{ vc }};font-weight:700;font-size:12px;text-transform:capitalize;">{{ s.verdict }}</span>
+    </label>
+    {% endfor %}
+  </div>
+
+  <div style="height:18px;"></div>
+  <button class="btn" type="submit">Build the draft →</button>
+</form>
+
+<script>
+  var form = document.getElementById('draftForm');
+  var picks = function(){ return Array.prototype.slice.call(form.querySelectorAll('.pick')); };
+  var max = {{ max_docs }};
+  function refresh(){
+    var checked = picks().filter(function(c){ return c.checked; });
+    document.getElementById('count').textContent = '· ' + checked.length + ' selected';
+    // enforce the cap
+    if (checked.length > max) { this && (this.checked = false); }
+  }
+  picks().forEach(function(c){ c.addEventListener('change', function(){
+    var checked = picks().filter(function(x){ return x.checked; });
+    if (checked.length > max) { c.checked = false; alert('Up to ' + max + ' documents per draft.'); }
+    refresh();
+  }); });
+  document.getElementById('selAll').addEventListener('click', function(e){ e.preventDefault();
+    var n=0; picks().forEach(function(c){ c.checked = (++n <= max); }); refresh(); });
+  document.getElementById('selNone').addEventListener('click', function(e){ e.preventDefault();
+    picks().forEach(function(c){ c.checked = false; }); refresh(); });
+  refresh();
+</script>
+{% endif %}
+{% endblock %}

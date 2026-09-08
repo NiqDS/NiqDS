@@ -76,6 +76,20 @@ rules and maps each flag to a field) — so every verdict is auditable, not an A
 guess. Auth is prototype-grade (no email verification / reset / rate-limiting yet);
 those belong in the Phase 1 platform build.
 
+### Send to accountant (bundle → draft)
+
+- `GET /draft` — pick which scanned documents to bundle (checkboxes + live count,
+  up to 20 per draft) and the accountant's email (remembered per user).
+- `POST /draft` → a preview with the subject and a plain-English note grouping
+  what's **ready** vs **still to sort out** (the fixes per document).
+- Two send options that work now: **Open in my mail app** (`mailto:` draft) and
+  **Download draft (.eml)** — a real draft with the documents attached that opens
+  ready-to-send in Outlook / Apple Mail / Thunderbird.
+- `app/mail.py` is a connector abstraction (`MAIL_BACKEND=local|gmail|microsoft`).
+  Linking a work mailbox to create the draft in-place is specced and ready to wire
+  — see [`docs/roadmap/email-drafts.md`](docs/roadmap/email-drafts.md) — but needs
+  OAuth credentials + a deployed callback, so it's not enabled in this prototype.
+
 ## Concierge CLI (run a bundle without the web app)
 
 For manual / batch delivery — point it at a folder of a client's documents and

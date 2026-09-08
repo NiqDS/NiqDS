@@ -1,0 +1,47 @@
+{% extends "app_base.html" %}
+{% block title %}Your draft · Intake Gate{% endblock %}
+{% block content %}
+<h1>Your draft</h1>
+<p class="sub">Review it, then open it in your mail app or download it with the documents attached. Nothing is sent until you send it.</p>
+
+<div class="card">
+  <div style="font-size:13px;color:var(--muted);">To</div>
+  <div style="font-weight:650;margin-bottom:10px;">{{ draft.to }}</div>
+  <div style="font-size:13px;color:var(--muted);">Subject</div>
+  <div style="font-weight:650;margin-bottom:10px;">{{ draft.subject }}</div>
+  <div style="font-size:13px;color:var(--muted);">Message</div>
+  <pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;margin:6px 0 0;color:var(--ink);">{{ draft.body_text }}</pre>
+</div>
+
+<div style="height:8px;"></div>
+<p class="muted" style="font-size:13px;">
+  📎 {{ draft.items|length }} document{{ 's' if draft.items|length != 1 else '' }} will be attached to the downloaded draft.
+</p>
+
+<div style="height:12px;"></div>
+<a class="btn" href="{{ mailto }}">Open in my mail app</a>
+<div style="height:10px;"></div>
+
+<!-- .eml with the documents actually attached -->
+<form method="post" action="/draft.eml">
+  <input type="hidden" name="accountant_email" value="{{ accountant_email }}">
+  <input type="hidden" name="note" value="{{ note }}">
+  {% for sid in scan_ids %}<input type="hidden" name="scan_ids" value="{{ sid }}">{% endfor %}
+  <button class="btn ghost" type="submit">Download draft (.eml, with documents)</button>
+</form>
+
+<p class="muted" style="font-size:12px;margin-top:14px;">
+  Tip: “Open in my mail app” pre-fills the message (attachments can't ride a mailto link);
+  the .eml download opens as a ready-to-send draft with the documents attached in Outlook,
+  Apple Mail or Thunderbird.
+</p>
+
+<div class="card" style="margin-top:18px;background:var(--bg);border-style:dashed;">
+  <div style="font-weight:650;margin-bottom:4px;">Coming soon: connect your work email</div>
+  <p class="muted" style="margin:0;font-size:13px;">Link Gmail or Microsoft 365 to create this draft
+    straight in your mailbox with one tap. Not enabled in this preview.</p>
+</div>
+
+<div style="height:16px;"></div>
+<a class="btn ghost" href="/app">Back to scanning</a>
+{% endblock %}

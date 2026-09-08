@@ -11,13 +11,18 @@ from datetime import date
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import (
+    HTMLResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import auth, db
+from app import auth, db, mail
 from app.ingest.extract import extract_document
 from app.ingest.loader import load_file
 from app.models import Bundle, ExtractedDocument
@@ -284,4 +289,89 @@ def scan_result(request: Request, scan_id: str):
         request, "scan_result.html",
         {"user": user, "doc": doc, "result": result,
          "verdict_class": VERDICT_CLASS, "status_icon": STATUS_ICON},
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Send to accountant — bundle selected scans into a draft
+# --------------------------------------------------------------------------- #
+
+
+def _scan_items(user_id: int, scan_ids: list[str], include_bytes: bool = False):
+    items = []
+    for sid in scan_ids:
+        row = db.get_scan(sid, user_id)
+        if row is None:
+            continue
+        doc = ExtractedDocument.model_validate_json(row["data_json"])
+        result = check_single(doc)
+        file_bytes = None
+        if include_bytes:
+            folder = SCAN_DIR / str(user_id) / sid
+            target = folder / doc.source_file
+            if target.exists():
+                file_bytes = target.read_bytes()
+            elif folder.exists():
+                found = [p for p in folder.iterdir() if p.is_file()]
+                file_bytes = found[0].read_bytes() if found else None
+        items.append(
+            mail.DraftItem(
+                scan_id=sid, label=result.doc_type_label, source_file=doc.source_file,
+                verdict=result.verdict, fixes=result.fixes, file_bytes=file_bytes,
+            )
+        )
+    return items
+
+
+@app.get("/draft", response_class=HTMLResponse)
+def draft_select(request: Request):
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    return templates.TemplateResponse(
+        request, "draft_select.html",
+        {"user": user, "recent": db.list_scans(user["id"], limit=50),
+         "max_docs": mail.MAX_ATTACHMENTS, "accountant_email": user.get("accountant_email") or ""},
+    )
+
+
+@app.post("/draft", response_class=HTMLResponse)
+def draft_build(
+    request: Request,
+    accountant_email: str = Form(...),
+    scan_ids: list[str] = Form(default=[]),
+    note: str = Form(""),
+):
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not scan_ids:
+        return RedirectResponse(url="/draft", status_code=303)
+    db.set_accountant_email(user["id"], accountant_email)
+    items = _scan_items(user["id"], scan_ids[: mail.MAX_ATTACHMENTS])
+    draft = mail.build_draft(user["email"], accountant_email.strip(), items, extra_note=note)
+    return templates.TemplateResponse(
+        request, "draft_preview.html",
+        {"user": user, "draft": draft, "scan_ids": [i.scan_id for i in items],
+         "note": note, "accountant_email": accountant_email.strip(),
+         "mailto": mail.to_mailto(draft)},
+    )
+
+
+@app.post("/draft.eml")
+def draft_eml(
+    request: Request,
+    accountant_email: str = Form(...),
+    scan_ids: list[str] = Form(default=[]),
+    note: str = Form(""),
+):
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    items = _scan_items(user["id"], scan_ids[: mail.MAX_ATTACHMENTS], include_bytes=True)
+    draft = mail.build_draft(user["email"], accountant_email.strip(), items, extra_note=note)
+    eml = mail.to_eml(draft, user["email"])
+    return Response(
+        content=eml, media_type="message/rfc822",
+        headers={"Content-Disposition": 'attachment; filename="records-for-accountant.eml"'},
     )

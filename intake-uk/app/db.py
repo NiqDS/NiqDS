@@ -40,10 +40,11 @@ def init_db() -> None:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                email      TEXT UNIQUE NOT NULL,
-                pw_hash    TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                email            TEXT UNIQUE NOT NULL,
+                pw_hash          TEXT NOT NULL,
+                accountant_email TEXT,
+                created_at       TEXT NOT NULL
             )
             """
         )
@@ -124,9 +125,17 @@ def get_user_by_email(email: str) -> dict | None:
 def get_user(user_id: int) -> dict | None:
     with _connect() as conn:
         row = conn.execute(
-            "SELECT id, email FROM users WHERE id = ?", (user_id,)
+            "SELECT id, email, accountant_email FROM users WHERE id = ?", (user_id,)
         ).fetchone()
     return dict(row) if row else None
+
+
+def set_accountant_email(user_id: int, email: str | None) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE users SET accountant_email = ? WHERE id = ?",
+            ((email or "").strip() or None, user_id),
+        )
 
 
 # --- scans -----------------------------------------------------------------
