@@ -53,10 +53,13 @@ ios/IntakeGate/
 
 ## Roadmap: fully native
 
-This shell is the fastest way onto a device. A fully native client (native
-camera, offline queue, push) would talk to a small JSON API on the backend —
-the rules engine and single-document checker already return structured results,
-so exposing `POST /api/scan` returning JSON is the only backend addition needed.
+This shell is the fastest way onto a device. The backend now also exposes a
+**JSON API** (`POST /api/login`, `POST /api/scan`, `GET /api/scans`,
+`GET /api/scan/{id}` — see the main README), so a fully native client (native
+camera, offline queue, push) can talk to it directly with `URLSession`: log in
+for a bearer token, then `POST` the photo to `/api/scan` and render the returned
+`fields` / `verdict` / `fixes`. The web shell and a native client can coexist —
+both hit the same endpoints.
 
 ## Manual fallback (if the .xcodeproj won't open)
 

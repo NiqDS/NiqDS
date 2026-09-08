@@ -9,12 +9,14 @@ from __future__ import annotations
 import os
 import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import (
     HTMLResponse,
+    JSONResponse,
     PlainTextResponse,
     RedirectResponse,
     Response,
@@ -25,6 +27,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import auth, db, mail, oauth
+from app.api import router as api_router
 from app.ingest.extract import extract_document
 from app.ingest.loader import load_file
 from app.models import Bundle, ExtractedDocument
@@ -39,20 +42,24 @@ BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR.parent / "data" / "uploads"
 SCAN_DIR = BASE_DIR.parent / "data" / "scans"
 
-app = FastAPI(title="Intake Gate (UK)")
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    db.init_db()
+    yield
+
+
+app = FastAPI(title="Intake Gate (UK)", lifespan=_lifespan)
 app.add_middleware(SessionMiddleware, secret_key=auth.session_secret(), same_site="lax")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+app.include_router(api_router)
 
 
-@app.on_event("startup")
-def _startup() -> None:
-    db.init_db()
-
-
-# #1 custom 404 — render a branded page instead of bare JSON.
+# Error rendering: JSON under /api, a branded HTML 404 elsewhere.
 @app.exception_handler(StarletteHTTPException)
-async def not_found_handler(request: Request, exc: StarletteHTTPException):
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if request.url.path.startswith("/api"):
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
     if exc.status_code == 404:
         return templates.TemplateResponse(
             request, "404.html", {"detail": exc.detail}, status_code=404

@@ -92,12 +92,36 @@ those belong in the Phase 1 platform build.
   client id/secret and it lights up; without them the app falls back to
   `.eml`/`mailto`. Setup: [`docs/setup/oauth-setup.md`](docs/setup/oauth-setup.md).
 
+## JSON API (for native clients)
+
+A typed JSON API (`app/api.py`) exposes the same single-document checker for a
+native app. Auth is a bearer token from `/api/login` (signed, 30-day) or the
+web session cookie; interactive docs at `/docs`.
+
+| Method & path | Body | Returns |
+|---|---|---|
+| `POST /api/login` | `{email, password}` | `{token, email}` |
+| `POST /api/scan` | multipart `file` | full scan result (type, verdict, per-field checks, fixes, rule-id flags) |
+| `GET /api/scans` | — | recent scans |
+| `GET /api/scan/{id}` | — | one scan result |
+| `GET /api/health` | — | `{status:"ok"}` |
+
+```bash
+TOKEN=$(curl -s -X POST localhost:8000/api/login -H 'content-type: application/json' \
+  -d '{"email":"you@biz.co.uk","password":"..."}' | python -c "import sys,json;print(json.load(sys.stdin)['token'])")
+curl -s -X POST localhost:8000/api/scan -H "Authorization: Bearer $TOKEN" -F file=@invoice.pdf
+```
+
+A scan made through the API is stored like any other, so it also appears in the
+web history and can be bundled into an accountant draft.
+
 ## iOS app (run on your iPhone)
 
 `ios/` is a native SwiftUI app that runs this web app in a `WKWebView` (camera
 capture works) so you can install and test on a device from Xcode. Open
 `ios/IntakeGate/IntakeGate.xcodeproj`, set your signing team + a unique bundle id,
-point it at your server, and Run. See [`ios/README.md`](ios/README.md).
+point it at your server, and Run. See [`ios/README.md`](ios/README.md). When you
+outgrow the web shell, the JSON API above is the seam to a fully native client.
 
 ## Concierge CLI (run a bundle without the web app)
 

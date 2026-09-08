@@ -16,6 +16,7 @@ reportlab>=4.0
 
 # Tests.
 pytest>=8.0
+httpx>=0.27  # FastAPI TestClient (API tests)
 
 # Optional real LLM backends live in requirements-optional.txt — install them
 # only when switching LLM_BACKEND to `anthropic` or `openai`.
