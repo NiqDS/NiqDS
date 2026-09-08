@@ -85,10 +85,19 @@ those belong in the Phase 1 platform build.
 - Two send options that work now: **Open in my mail app** (`mailto:` draft) and
   **Download draft (.eml)** — a real draft with the documents attached that opens
   ready-to-send in Outlook / Apple Mail / Thunderbird.
-- `app/mail.py` is a connector abstraction (`MAIL_BACKEND=local|gmail|microsoft`).
-  Linking a work mailbox to create the draft in-place is specced and ready to wire
-  — see [`docs/roadmap/email-drafts.md`](docs/roadmap/email-drafts.md) — but needs
-  OAuth credentials + a deployed callback, so it's not enabled in this prototype.
+- **Connect a work mailbox (Gmail / Microsoft 365):** the OAuth link flow is
+  implemented (`app/oauth.py`, auth-code + PKCE, least-privilege draft scopes) —
+  `/connect/{provider}` → `/oauth/callback/{provider}` → per-user tokens → a
+  one-tap **"Create draft in Gmail/Outlook"** button. It's **env-gated**: set the
+  client id/secret and it lights up; without them the app falls back to
+  `.eml`/`mailto`. Setup: [`docs/setup/oauth-setup.md`](docs/setup/oauth-setup.md).
+
+## iOS app (run on your iPhone)
+
+`ios/` is a native SwiftUI app that runs this web app in a `WKWebView` (camera
+capture works) so you can install and test on a device from Xcode. Open
+`ios/IntakeGate/IntakeGate.xcodeproj`, set your signing team + a unique bundle id,
+point it at your server, and Run. See [`ios/README.md`](ios/README.md).
 
 ## Concierge CLI (run a bundle without the web app)
 

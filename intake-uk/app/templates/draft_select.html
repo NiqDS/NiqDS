@@ -4,6 +4,20 @@
 <h1>Send to your accountant</h1>
 <p class="sub">Pick the documents to bundle, and we'll draft an email with them attached and a note of anything still to fix.</p>
 
+{% if connected %}
+<div class="card" style="background:var(--ok-bg);border-color:transparent;margin-bottom:14px;">
+  <p style="margin:0;color:var(--ok);font-weight:650;">✓ Work email connected — you can create the draft straight in your mailbox.</p>
+</div>
+{% elif err == "notconfigured" %}
+<div class="card" style="background:var(--warn-bg);border-color:transparent;margin-bottom:14px;">
+  <p style="margin:0;color:var(--warn);font-size:14px;">Work-email linking isn't set up on this server yet — use the .eml or mailto draft for now.</p>
+</div>
+{% elif err %}
+<div class="card" style="background:var(--block-bg);border-color:transparent;margin-bottom:14px;">
+  <p style="margin:0;color:var(--block);font-size:14px;">Something went wrong linking your email. Please try again, or use the .eml / mailto draft.</p>
+</div>
+{% endif %}
+
 {% if not recent %}
 <div class="card"><p class="muted" style="margin:0;">No scans yet. <a href="/app">Scan a document</a> first, then come back to bundle them.</p></div>
 {% else %}

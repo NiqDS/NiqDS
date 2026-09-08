@@ -61,6 +61,19 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS oauth_tokens (
+                user_id       INTEGER NOT NULL,
+                provider      TEXT NOT NULL,
+                refresh_token TEXT,
+                access_token  TEXT,
+                expires_at    INTEGER NOT NULL DEFAULT 0,
+                account_email TEXT,
+                PRIMARY KEY (user_id, provider)
+            )
+            """
+        )
 
 
 def save_bundle(bundle: Bundle) -> None:
@@ -178,3 +191,51 @@ def list_scans(user_id: int, limit: int = 20) -> list[dict]:
             (user_id, limit),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# --- linked mailbox OAuth tokens -------------------------------------------
+
+
+def save_oauth_token(user_id: int, provider: str, *, refresh_token: str | None,
+                     access_token: str | None, expires_at: int, account_email: str | None) -> None:
+    with _connect() as conn:
+        # Keep an existing refresh token if the provider didn't return a new one.
+        existing = conn.execute(
+            "SELECT refresh_token FROM oauth_tokens WHERE user_id = ? AND provider = ?",
+            (user_id, provider),
+        ).fetchone()
+        if not refresh_token and existing:
+            refresh_token = existing["refresh_token"]
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO oauth_tokens
+                (user_id, provider, refresh_token, access_token, expires_at, account_email)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (user_id, provider, refresh_token, access_token, expires_at, account_email),
+        )
+
+
+def get_oauth_token(user_id: int, provider: str) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT provider, refresh_token, access_token, expires_at, account_email "
+            "FROM oauth_tokens WHERE user_id = ? AND provider = ?",
+            (user_id, provider),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_oauth_token(user_id: int, provider: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "DELETE FROM oauth_tokens WHERE user_id = ? AND provider = ?", (user_id, provider)
+        )
+
+
+def list_connections(user_id: int) -> list[str]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT provider FROM oauth_tokens WHERE user_id = ?", (user_id,)
+        ).fetchall()
+    return [r["provider"] for r in rows]

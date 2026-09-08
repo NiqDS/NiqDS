@@ -140,32 +140,61 @@ def to_eml(draft: Draft, from_email: str) -> bytes:
     return bytes(msg)
 
 
-# --- remote connectors (scaffold — see docs/roadmap/email-drafts.md) --------
+# --- remote connectors: create the draft in the user's linked mailbox -------
+
+import base64  # noqa: E402
+
+from app import oauth  # noqa: E402
+
+_GMAIL_DRAFTS = "https://gmail.googleapis.com/gmail/v1/users/me/drafts"
+_GMAIL_WEB = "https://mail.google.com/mail/u/0/#drafts"
+_GRAPH_MESSAGES = "https://graph.microsoft.com/v1.0/me/messages"
 
 
 class MailNotConfigured(RuntimeError):
     pass
 
 
-def backend() -> str:
-    return os.environ.get("MAIL_BACKEND", "local").lower()
+def create_remote_draft(draft: Draft, from_email: str, provider: str, access_token: str) -> str:
+    """Create a draft in the user's linked work mailbox. Returns a web link/id.
 
-
-def create_remote_draft(draft: Draft, from_email: str) -> str:
-    """Create a draft in the user's linked work mailbox.
-
-    Not wired in the prototype: connecting a work mailbox needs registered OAuth
-    apps (Google Cloud / Microsoft Entra), stored per-user tokens, and a deployed
-    redirect URI. The interface is fixed so the Phase 1 build only has to fill in
-    the token exchange + API call:
-
-        gmail     → POST gmail/v1/users/me/drafts  (scope gmail.compose)
-        microsoft → POST /me/messages isDraft       (scope Mail.ReadWrite)
-
-    Returns the provider's draft id / web link on success.
+    ``gmail``     → POST gmail/v1/users/me/drafts (scope gmail.compose)
+    ``microsoft`` → POST /me/messages then /attachments (scope Mail.ReadWrite)
     """
 
-    raise MailNotConfigured(
-        "Linking a work email account isn't enabled in this build. "
-        "Use the .eml download or the mailto draft for now."
-    )
+    if provider == "gmail":
+        return _create_gmail_draft(draft, from_email, access_token)
+    if provider == "microsoft":
+        return _create_microsoft_draft(draft, access_token)
+    raise MailNotConfigured(f"Unknown mail provider: {provider!r}")
+
+
+def _create_gmail_draft(draft: Draft, from_email: str, access_token: str) -> str:
+    raw = base64.urlsafe_b64encode(to_eml(draft, from_email)).decode("ascii")
+    resp = oauth.post_json(_GMAIL_DRAFTS, access_token, {"message": {"raw": raw}})
+    return _GMAIL_WEB if resp.get("id") else _GMAIL_WEB
+
+
+def _create_microsoft_draft(draft: Draft, access_token: str) -> str:
+    # Creating a message (not sending it) leaves it in Drafts.
+    body = {
+        "subject": draft.subject,
+        "body": {"contentType": "Text", "content": draft.body_text},
+        "toRecipients": [{"emailAddress": {"address": draft.to}}],
+    }
+    msg = oauth.post_json(_GRAPH_MESSAGES, access_token, body)
+    msg_id = msg.get("id")
+    for item in draft.items[:MAX_ATTACHMENTS]:
+        if not item.file_bytes or not msg_id:
+            continue
+        ctype, _ = guess_type(item.source_file)
+        oauth.post_json(
+            f"{_GRAPH_MESSAGES}/{msg_id}/attachments", access_token,
+            {
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": item.source_file,
+                "contentType": ctype or "application/octet-stream",
+                "contentBytes": base64.b64encode(item.file_bytes).decode("ascii"),
+            },
+        )
+    return msg.get("webLink", "https://outlook.office.com/mail/drafts")

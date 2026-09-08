@@ -1,9 +1,11 @@
 # Connecting a work email to create drafts
 
-Status: **the app builds drafts today** as a downloadable `.eml` (documents
-attached) and a `mailto:` link — no accounts to link, works offline. This note
-specs the next step: **link a work mailbox and create the draft directly in it**,
-one tap, from the same "Send to accountant" flow.
+Status: **implemented.** The app builds `.eml` / `mailto` drafts offline *and*
+now links a work mailbox (Gmail / Microsoft 365) via OAuth to create the draft
+directly in it. This note is the design record; the operator setup (registering
+the OAuth apps + env vars) lives in [`../setup/oauth-setup.md`](../setup/oauth-setup.md).
+The flow: `/connect/{provider}` (auth-code + PKCE) → `/oauth/callback/{provider}`
+→ per-user tokens in `oauth_tokens` → `POST /draft/remote` → the provider draft.
 
 It slots behind the existing seam in `app/mail.py`:
 

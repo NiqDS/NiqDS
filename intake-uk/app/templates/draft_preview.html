@@ -19,7 +19,22 @@
 </p>
 
 <div style="height:12px;"></div>
-<a class="btn" href="{{ mailto }}">Open in my mail app</a>
+
+{% set connected = providers | selectattr('connected') | list %}
+{% set configurable = providers | selectattr('configured') | rejectattr('connected') | list %}
+
+<!-- One-tap: create the draft straight in a linked mailbox -->
+{% for p in connected %}
+<form method="post" action="/draft/remote" style="margin-bottom:10px;">
+  <input type="hidden" name="provider" value="{{ p.id }}">
+  <input type="hidden" name="accountant_email" value="{{ accountant_email }}">
+  <input type="hidden" name="note" value="{{ note }}">
+  {% for sid in scan_ids %}<input type="hidden" name="scan_ids" value="{{ sid }}">{% endfor %}
+  <button class="btn" type="submit">Create draft in {{ p.label }}</button>
+</form>
+{% endfor %}
+
+<a class="btn {{ 'ghost' if connected else '' }}" href="{{ mailto }}">Open in my mail app</a>
 <div style="height:10px;"></div>
 
 <!-- .eml with the documents actually attached -->
@@ -36,11 +51,27 @@
   Apple Mail or Thunderbird.
 </p>
 
-<div class="card" style="margin-top:18px;background:var(--bg);border-style:dashed;">
-  <div style="font-weight:650;margin-bottom:4px;">Coming soon: connect your work email</div>
-  <p class="muted" style="margin:0;font-size:13px;">Link Gmail or Microsoft 365 to create this draft
-    straight in your mailbox with one tap. Not enabled in this preview.</p>
+{% if configurable %}
+<div class="card" style="margin-top:18px;">
+  <div style="font-weight:650;margin-bottom:8px;">Create it straight in your mailbox</div>
+  {% for p in configurable %}
+  <a class="btn ghost" href="/connect/{{ p.id }}" style="margin-bottom:8px;">Connect {{ p.label }} →</a>
+  {% endfor %}
+  <p class="muted" style="margin:2px 0 0;font-size:12px;">We only ask to create drafts — never to read your inbox or send on your behalf.</p>
 </div>
+{% elif not connected %}
+<div class="card" style="margin-top:18px;background:var(--bg);border-style:dashed;">
+  <div style="font-weight:650;margin-bottom:4px;">Connect your work email (optional)</div>
+  <p class="muted" style="margin:0;font-size:13px;">Once Gmail or Microsoft 365 is set up on the server,
+    you'll be able to create this draft in your mailbox with one tap.</p>
+</div>
+{% endif %}
+
+{% if connected %}
+<p class="muted" style="font-size:12px;margin-top:12px;text-align:center;">
+  Connected: {% for p in connected %}{{ p.label }} (<a href="/disconnect/{{ p.id }}">disconnect</a>){% if not loop.last %}, {% endif %}{% endfor %}
+</p>
+{% endif %}
 
 <div style="height:16px;"></div>
 <a class="btn ghost" href="/app">Back to scanning</a>

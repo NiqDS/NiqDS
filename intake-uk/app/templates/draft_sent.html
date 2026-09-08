@@ -1,0 +1,17 @@
+{% extends "app_base.html" %}
+{% block title %}Draft created · Intake Gate{% endblock %}
+{% block content %}
+<div class="card" style="background:var(--ok-bg);border-color:transparent;text-align:center;padding:26px 18px;margin-top:14px;">
+  <div style="font-size:42px;line-height:1;">✓</div>
+  <div style="font-size:21px;font-weight:800;margin-top:8px;color:var(--ok);">Draft created in {{ provider_label }}</div>
+  <div class="muted" style="font-size:14px;margin-top:6px;">
+    {{ count }} document{{ 's' if count != 1 else '' }} attached. It's waiting in your Drafts —
+    open it, add anything you like, and send when you're ready. Nothing was sent for you.
+  </div>
+</div>
+
+<div style="height:18px;"></div>
+<a class="btn" href="{{ link }}" target="_blank" rel="noopener">Open my drafts in {{ provider_label }} →</a>
+<div style="height:10px;"></div>
+<a class="btn ghost" href="/app">Back to scanning</a>
+{% endblock %}

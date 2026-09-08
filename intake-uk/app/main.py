@@ -6,6 +6,8 @@ dashboard. The demo is: drag files in, see red, read the email that fixes it.
 
 from __future__ import annotations
 
+import os
+import time
 import uuid
 from datetime import date
 from pathlib import Path
@@ -22,7 +24,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import auth, db, mail
+from app import auth, db, mail, oauth
 from app.ingest.extract import extract_document
 from app.ingest.loader import load_file
 from app.models import Bundle, ExtractedDocument
@@ -323,6 +325,15 @@ def _scan_items(user_id: int, scan_ids: list[str], include_bytes: bool = False):
     return items
 
 
+def _provider_status(user_id: int) -> list[dict]:
+    connected = set(db.list_connections(user_id))
+    out = []
+    for pid, cfg in oauth.PROVIDERS.items():
+        out.append({"id": pid, "label": cfg["label"],
+                    "configured": oauth.is_configured(pid), "connected": pid in connected})
+    return out
+
+
 @app.get("/draft", response_class=HTMLResponse)
 def draft_select(request: Request):
     user = _current_user(request)
@@ -331,7 +342,9 @@ def draft_select(request: Request):
     return templates.TemplateResponse(
         request, "draft_select.html",
         {"user": user, "recent": db.list_scans(user["id"], limit=50),
-         "max_docs": mail.MAX_ATTACHMENTS, "accountant_email": user.get("accountant_email") or ""},
+         "max_docs": mail.MAX_ATTACHMENTS, "accountant_email": user.get("accountant_email") or "",
+         "connected": request.query_params.get("connected"),
+         "err": request.query_params.get("err")},
     )
 
 
@@ -354,7 +367,7 @@ def draft_build(
         request, "draft_preview.html",
         {"user": user, "draft": draft, "scan_ids": [i.scan_id for i in items],
          "note": note, "accountant_email": accountant_email.strip(),
-         "mailto": mail.to_mailto(draft)},
+         "mailto": mail.to_mailto(draft), "providers": _provider_status(user["id"])},
     )
 
 
@@ -374,4 +387,108 @@ def draft_eml(
     return Response(
         content=eml, media_type="message/rfc822",
         headers={"Content-Disposition": 'attachment; filename="records-for-accountant.eml"'},
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Link a work mailbox (OAuth) + create the draft in it
+# --------------------------------------------------------------------------- #
+
+
+def _redirect_uri(request: Request, provider: str) -> str:
+    base = os.environ.get("OAUTH_REDIRECT_BASE") or str(request.base_url).rstrip("/")
+    return f"{base}/oauth/callback/{provider}"
+
+
+def _access_token(user_id: int, provider: str) -> str | None:
+    """Return a valid access token, refreshing it if it's expired/near expiry."""
+
+    row = db.get_oauth_token(user_id, provider)
+    if not row:
+        return None
+    if row["access_token"] and row["expires_at"] > int(time.time()) + 60:
+        return row["access_token"]
+    if not row["refresh_token"]:
+        return None
+    try:
+        tok = oauth.refresh_access_token(provider, row["refresh_token"])
+    except oauth.OAuthError:
+        return None
+    db.save_oauth_token(
+        user_id, provider, refresh_token=tok.get("refresh_token"),
+        access_token=tok.get("access_token"),
+        expires_at=int(time.time()) + int(tok.get("expires_in", 3600)),
+        account_email=row["account_email"],
+    )
+    return tok.get("access_token")
+
+
+@app.get("/connect/{provider}")
+def connect(request: Request, provider: str):
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if provider not in oauth.PROVIDERS or not oauth.is_configured(provider):
+        return RedirectResponse(url="/draft?err=notconfigured", status_code=303)
+    state = oauth.new_state()
+    verifier, challenge = oauth.new_pkce()
+    request.session["oauth"] = {"provider": provider, "state": state, "verifier": verifier}
+    url = oauth.authorization_url(provider, _redirect_uri(request, provider), state, challenge)
+    return RedirectResponse(url=url, status_code=303)
+
+
+@app.get("/oauth/callback/{provider}")
+def oauth_callback(request: Request, provider: str, code: str = "", state: str = "", error: str = ""):
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    sess = request.session.get("oauth") or {}
+    request.session.pop("oauth", None)
+    if error or not code or sess.get("provider") != provider or sess.get("state") != state:
+        return RedirectResponse(url="/draft?err=oauth", status_code=303)
+    try:
+        tok = oauth.exchange_code(provider, code, _redirect_uri(request, provider), sess["verifier"])
+    except oauth.OAuthError:
+        return RedirectResponse(url="/draft?err=oauth", status_code=303)
+    db.save_oauth_token(
+        user["id"], provider, refresh_token=tok.get("refresh_token"),
+        access_token=tok.get("access_token"),
+        expires_at=int(time.time()) + int(tok.get("expires_in", 3600)), account_email=None,
+    )
+    return RedirectResponse(url=f"/draft?connected={provider}", status_code=303)
+
+
+@app.get("/disconnect/{provider}")
+def disconnect(request: Request, provider: str):
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    db.delete_oauth_token(user["id"], provider)
+    return RedirectResponse(url="/draft", status_code=303)
+
+
+@app.post("/draft/remote", response_class=HTMLResponse)
+def draft_remote(
+    request: Request,
+    provider: str = Form(...),
+    accountant_email: str = Form(...),
+    scan_ids: list[str] = Form(default=[]),
+    note: str = Form(""),
+):
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    token = _access_token(user["id"], provider)
+    if token is None:
+        return RedirectResponse(url="/draft?err=link", status_code=303)
+    items = _scan_items(user["id"], scan_ids[: mail.MAX_ATTACHMENTS], include_bytes=True)
+    draft = mail.build_draft(user["email"], accountant_email.strip(), items, extra_note=note)
+    try:
+        link = mail.create_remote_draft(draft, user["email"], provider, token)
+    except Exception:
+        return RedirectResponse(url="/draft?err=send", status_code=303)
+    return templates.TemplateResponse(
+        request, "draft_sent.html",
+        {"user": user, "provider_label": oauth.provider_label(provider), "link": link,
+         "count": len(items)},
     )
