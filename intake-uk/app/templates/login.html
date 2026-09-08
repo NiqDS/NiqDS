@@ -1,0 +1,46 @@
+{% extends "app_base.html" %}
+{% block title %}{{ "Sign up" if mode == "signup" else "Log in" }} · Intake Gate{% endblock %}
+{% block chrome %}
+<div class="topbar">
+  <span class="brand">
+    <svg width="22" height="22" viewBox="0 0 64 64" aria-hidden="true">
+      <rect x="4" y="4" width="56" height="56" rx="13" fill="#10212f" stroke="#3f7fe0" stroke-width="3"/>
+      <path d="M20 33 l8 8 l17 -19" fill="none" stroke="#2e9e5b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Intake Gate
+  </span>
+</div>
+{% endblock %}
+{% block content %}
+<div style="margin-top:14px;">
+  <h1>{{ "Create your account" if mode == "signup" else "Welcome back" }}</h1>
+  <p class="sub">Check a document is complete and correct before you send it to your accountant.</p>
+
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+
+  <div class="card">
+    <form method="post" action="{{ '/signup' if mode == 'signup' else '/login' }}">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required autocomplete="email"
+             inputmode="email" value="{{ email or '' }}" placeholder="you@business.co.uk">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" required
+             autocomplete="{{ 'new-password' if mode == 'signup' else 'current-password' }}"
+             placeholder="{{ 'At least 8 characters' if mode == 'signup' else '••••••••' }}">
+      <div style="height:16px;"></div>
+      <button class="btn" type="submit">{{ "Create account" if mode == "signup" else "Log in" }}</button>
+    </form>
+  </div>
+
+  <p class="muted" style="text-align:center;margin-top:18px;font-size:14px;">
+    {% if mode == "signup" %}
+      Already have an account? <a href="/login">Log in</a>
+    {% else %}
+      New here? <a href="/signup">Create an account</a>
+    {% endif %}
+  </p>
+  <p class="muted" style="text-align:center;font-size:12px;margin-top:22px;">
+    Records quality check only — nothing is filed with HMRC.
+  </p>
+</div>
+{% endblock %}

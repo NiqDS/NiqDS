@@ -37,6 +37,29 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                email      TEXT UNIQUE NOT NULL,
+                pw_hash    TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS scans (
+                scan_id    TEXT PRIMARY KEY,
+                user_id    INTEGER NOT NULL,
+                doc_type   TEXT NOT NULL,
+                verdict    TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                data_json  TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+            """
+        )
 
 
 def save_bundle(bundle: Bundle) -> None:
@@ -74,5 +97,75 @@ def list_bundles() -> list[dict]:
         rows = conn.execute(
             "SELECT bundle_id, client_name, created_at FROM bundles "
             "ORDER BY created_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# --- users (for the scan app) ----------------------------------------------
+
+
+def create_user(email: str, pw_hash: str) -> int:
+    with _connect() as conn:
+        cur = conn.execute(
+            "INSERT INTO users (email, pw_hash, created_at) VALUES (?, ?, ?)",
+            (email, pw_hash, datetime.utcnow().isoformat(timespec="seconds")),
+        )
+        return int(cur.lastrowid)
+
+
+def get_user_by_email(email: str) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, email, pw_hash FROM users WHERE email = ?", (email,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_user(user_id: int) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, email FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+# --- scans -----------------------------------------------------------------
+
+
+def save_scan(scan_id: str, user_id: int, doc_type: str, verdict: str, data_json: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO scans
+                (scan_id, user_id, doc_type, verdict, created_at, data_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                scan_id,
+                user_id,
+                doc_type,
+                verdict,
+                datetime.utcnow().isoformat(timespec="seconds"),
+                data_json,
+            ),
+        )
+
+
+def get_scan(scan_id: str, user_id: int) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT scan_id, doc_type, verdict, created_at, data_json FROM scans "
+            "WHERE scan_id = ? AND user_id = ?",
+            (scan_id, user_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def list_scans(user_id: int, limit: int = 20) -> list[dict]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT scan_id, doc_type, verdict, created_at FROM scans "
+            "WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+            (user_id, limit),
         ).fetchall()
     return [dict(r) for r in rows]

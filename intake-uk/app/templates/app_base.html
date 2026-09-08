@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}Intake Gate{% endblock %}</title>
+  <meta name="description" content="Check a document is complete and correct before you send it.">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#10212f">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <style>
+    :root{
+      --navy:#10212f; --ink:#1c2733; --muted:#6b7785; --line:#e3e8ee; --bg:#f4f7fb;
+      --card:#ffffff; --blue:#1f6feb; --blue-d:#1857c4;
+      --ok:#1e8449; --ok-bg:#e4f2ea; --warn:#b8860b; --warn-bg:#f7efd8;
+      --block:#c0392b; --block-bg:#f7e4e1;
+    }
+    *{box-sizing:border-box;}
+    body{margin:0;background:var(--bg);color:var(--ink);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased;}
+    .shell{max-width:480px;margin:0 auto;min-height:100vh;background:var(--bg);
+      display:flex;flex-direction:column;}
+    .topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;
+      padding:12px 18px;background:var(--navy);color:#fff;
+      padding-top:calc(12px + env(safe-area-inset-top));}
+    .topbar a{color:#cfe0ee;text-decoration:none;font-size:14px;}
+    .topbar .brand{display:flex;align-items:center;gap:8px;font-weight:700;color:#fff;font-size:16px;}
+    .topbar .brand svg{display:block;}
+    main.app{flex:1;padding:18px;padding-bottom:calc(28px + env(safe-area-inset-bottom));}
+    h1{font-size:22px;margin:4px 0 4px;letter-spacing:-.2px;}
+    p.sub{color:var(--muted);margin:0 0 18px;font-size:15px;}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;
+      box-shadow:0 1px 2px rgba(16,33,47,.04),0 10px 24px rgba(16,33,47,.05);}
+    .btn{display:block;width:100%;text-align:center;background:var(--blue);color:#fff;border:none;
+      border-radius:12px;padding:15px;font-size:16px;font-weight:700;cursor:pointer;text-decoration:none;}
+    .btn:active{background:var(--blue-d);}
+    .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);}
+    .muted{color:var(--muted);}
+    label{display:block;font-size:13px;font-weight:600;margin:14px 0 5px;}
+    input[type=email],input[type=password]{width:100%;padding:13px;border:1px solid var(--line);
+      border-radius:11px;font-size:16px;background:#fff;color:var(--ink);}
+    .err{background:var(--block-bg);color:var(--block);border-radius:10px;padding:10px 12px;font-size:14px;margin:10px 0;}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    {% block chrome %}
+    <div class="topbar">
+      <span class="brand">
+        <svg width="22" height="22" viewBox="0 0 64 64" aria-hidden="true">
+          <rect x="4" y="4" width="56" height="56" rx="13" fill="#10212f" stroke="#3f7fe0" stroke-width="3"/>
+          <path d="M20 33 l8 8 l17 -19" fill="none" stroke="#2e9e5b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Intake Gate
+      </span>
+      {% if user %}<a href="/logout">Log out</a>{% endif %}
+    </div>
+    {% endblock %}
+    <main class="app">{% block content %}{% endblock %}</main>
+  </div>
+</body>
+</html>

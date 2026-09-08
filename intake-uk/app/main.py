@@ -15,21 +15,25 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.sessions import SessionMiddleware
 
-from app import db
+from app import auth, db
 from app.ingest.extract import extract_document
 from app.ingest.loader import load_file
-from app.models import Bundle
+from app.models import Bundle, ExtractedDocument
 from app.report.chase import build_chase
 from app.report.gaps import build_gap_report
 from app.rules.engine import run_bundle, sort_flags
 from app.scenarios import build_bundle as build_scenario_bundle
 from app.scenarios import scenario_names
+from app.single import check_single
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR.parent / "data" / "uploads"
+SCAN_DIR = BASE_DIR.parent / "data" / "scans"
 
 app = FastAPI(title="Intake Gate (UK)")
+app.add_middleware(SessionMiddleware, secret_key=auth.session_secret(), same_site="lax")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
@@ -174,3 +178,110 @@ def chase_text(bundle_id: str):
         raise HTTPException(status_code=404, detail="That bundle doesn't exist.")
     _flags, _report, chase = _compute(bundle)
     return PlainTextResponse(chase.text)
+
+
+# --------------------------------------------------------------------------- #
+# Scan app — log in, take/upload one photo, check it's complete & correct
+# --------------------------------------------------------------------------- #
+
+VERDICT_CLASS = {"ready": "ok", "fix": "block", "unreadable": "warn", "unknown": "warn"}
+STATUS_ICON = {"ok": "✓", "invalid": "✕", "missing": "✕", "warn": "!", "optional": "–"}
+
+
+def _current_user(request: Request) -> dict | None:
+    uid = request.session.get("uid")
+    if uid is None:
+        return None
+    return db.get_user(int(uid))
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    if request.session.get("uid"):
+        return RedirectResponse(url="/app", status_code=303)
+    return templates.TemplateResponse(request, "login.html", {"mode": "login", "error": None})
+
+
+@app.post("/login")
+def login_submit(request: Request, email: str = Form(...), password: str = Form(...)):
+    uid = auth.authenticate(email, password)
+    if uid is None:
+        return templates.TemplateResponse(
+            request, "login.html",
+            {"mode": "login", "error": "Email or password not recognised.", "email": email},
+            status_code=401,
+        )
+    request.session["uid"] = uid
+    return RedirectResponse(url="/app", status_code=303)
+
+
+@app.get("/signup", response_class=HTMLResponse)
+def signup_page(request: Request):
+    if request.session.get("uid"):
+        return RedirectResponse(url="/app", status_code=303)
+    return templates.TemplateResponse(request, "login.html", {"mode": "signup", "error": None})
+
+
+@app.post("/signup")
+def signup_submit(request: Request, email: str = Form(...), password: str = Form(...)):
+    uid, error = auth.register(email, password)
+    if error:
+        return templates.TemplateResponse(
+            request, "login.html",
+            {"mode": "signup", "error": error, "email": email}, status_code=400,
+        )
+    request.session["uid"] = uid
+    return RedirectResponse(url="/app", status_code=303)
+
+
+@app.get("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/login", status_code=303)
+
+
+@app.get("/app", response_class=HTMLResponse)
+def scan_home(request: Request):
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    return templates.TemplateResponse(
+        request, "scan.html", {"user": user, "recent": db.list_scans(user["id"])}
+    )
+
+
+@app.post("/scan")
+async def scan_submit(request: Request, file: UploadFile = File(...)):
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not file or not file.filename:
+        return RedirectResponse(url="/app", status_code=303)
+
+    scan_id = "S-" + uuid.uuid4().hex[:8]
+    dest = SCAN_DIR / str(user["id"]) / scan_id
+    dest.mkdir(parents=True, exist_ok=True)
+    target = dest / Path(file.filename).name
+    target.write_bytes(await file.read())
+
+    doc = extract_document(load_file(target))
+    result = check_single(doc)
+    db.save_scan(scan_id, user["id"], doc.doc_type.value, result.verdict, doc.model_dump_json())
+    return RedirectResponse(url=f"/scan/{scan_id}", status_code=303)
+
+
+@app.get("/scan/{scan_id}", response_class=HTMLResponse)
+def scan_result(request: Request, scan_id: str):
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    row = db.get_scan(scan_id, user["id"])
+    if row is None:
+        raise HTTPException(status_code=404, detail="That scan doesn't exist.")
+    doc = ExtractedDocument.model_validate_json(row["data_json"])
+    result = check_single(doc)
+    return templates.TemplateResponse(
+        request, "scan_result.html",
+        {"user": user, "doc": doc, "result": result,
+         "verdict_class": VERDICT_CLASS, "status_icon": STATUS_ICON},
+    )

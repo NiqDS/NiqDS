@@ -1,0 +1,72 @@
+{% extends "app_base.html" %}
+{% block title %}{{ result.headline }} · Intake Gate{% endblock %}
+{% block content %}
+{% set vc = verdict_class[result.verdict] %}
+{% set colors = {"ok":"var(--ok)","warn":"var(--warn)","block":"var(--block)"} %}
+{% set bgs = {"ok":"var(--ok-bg)","warn":"var(--warn-bg)","block":"var(--block-bg)"} %}
+
+<!-- Verdict banner -->
+<div class="card" style="background:{{ bgs[vc] }};border-color:transparent;text-align:center;padding:22px 16px;">
+  <div style="font-size:40px;line-height:1;">
+    {% if result.verdict == "ready" %}✓{% elif result.verdict == "unreadable" %}🔍{% elif result.verdict == "unknown" %}❓{% else %}✕{% endif %}
+  </div>
+  <div style="font-size:21px;font-weight:800;margin-top:8px;color:{{ colors[vc] }};">{{ result.headline }}</div>
+  <div class="muted" style="font-size:14px;margin-top:6px;">{{ result.subhead }}</div>
+</div>
+
+{% if result.verdict in ["ready","fix"] %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin:20px 4px 10px;">
+  <span style="font-weight:700;">{{ result.doc_type_label }}</span>
+  <span class="muted" style="font-size:12px;">read confidence {{ "%.0f"|format(result.confidence*100) }}%</span>
+</div>
+
+<!-- Field checklist -->
+<div class="card" style="padding:6px 16px;">
+  {% for f in result.fields %}
+  {% set sc = {"ok":"var(--ok)","invalid":"var(--block)","missing":"var(--block)","warn":"var(--warn)","optional":"var(--muted)"}[f.status] %}
+  <div style="display:flex;gap:12px;padding:12px 0;{% if not loop.last %}border-bottom:1px solid var(--line);{% endif %}">
+    <span style="flex:0 0 22px;height:22px;border-radius:50%;background:{{ sc }};color:#fff;
+      display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;margin-top:1px;">{{ status_icon[f.status] }}</span>
+    <span style="flex:1;">
+      <span style="font-weight:650;">{{ f.label }}</span>
+      {% if f.value %}<span class="muted"> — {{ f.value }}</span>{% endif %}
+      {% if f.note and f.status in ["invalid","missing","warn"] %}
+        <div style="font-size:13px;color:{{ sc }};margin-top:2px;">{{ f.note }}</div>
+      {% endif %}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- What to fix -->
+{% if result.fixes %}
+<h2 style="font-size:15px;margin:22px 4px 10px;">What to fix</h2>
+<div class="card" style="background:var(--block-bg);border-color:transparent;">
+  <ol style="margin:0;padding-left:20px;">
+    {% for fix in result.fixes %}<li style="margin:6px 0;font-size:14px;">{{ fix }}</li>{% endfor %}
+  </ol>
+</div>
+{% endif %}
+
+<div style="height:22px;"></div>
+{% if result.verdict == "ready" %}
+<a class="btn" href="/app">Scan the next one →</a>
+{% else %}
+<a class="btn" href="/app">Retake / scan another</a>
+{% endif %}
+
+<!-- Audit trail: every check traces to a named rule -->
+{% if result.flags %}
+<details style="margin-top:18px;">
+  <summary class="muted" style="font-size:13px;cursor:pointer;">Why did it flag these? (audit trail)</summary>
+  <div class="card" style="margin-top:8px;">
+    {% for f in result.flags %}
+    <div style="font-size:12px;font-family:ui-monospace,Menlo,monospace;color:var(--muted);padding:3px 0;">
+      {{ f.severity }} · {{ f.rule_id }}{% if f.field %} · {{ f.field }}{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
+{% endblock %}

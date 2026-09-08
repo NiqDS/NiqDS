@@ -5,3 +5,5 @@ __pycache__/
 data/gate.db
 data/uploads/
 .pytest_cache/
+data/secret.key
+data/scans/

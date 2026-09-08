@@ -1,0 +1,47 @@
+{% extends "app_base.html" %}
+{% block title %}Scan a document · Intake Gate{% endblock %}
+{% block content %}
+<h1>Scan a document</h1>
+<p class="sub">Take a photo of an invoice, receipt or bank statement. We'll tell you what it is and whether it's complete and correct.</p>
+
+<form method="post" action="/scan" enctype="multipart/form-data" id="scanForm">
+  <!-- Camera capture (opens the camera on a phone) -->
+  <label for="camera" class="card" style="display:block;text-align:center;cursor:pointer;padding:34px 16px;">
+    <div style="font-size:44px;line-height:1;">📷</div>
+    <div style="font-weight:700;font-size:17px;margin-top:10px;">Take a photo</div>
+    <div class="muted" style="font-size:13px;margin-top:4px;">Fill the frame, good light, all four corners visible</div>
+  </label>
+  <input id="camera" name="file" type="file" accept="image/*" capture="environment" hidden
+         onchange="document.getElementById('scanForm').submit()">
+
+  <div style="height:12px;"></div>
+
+  <!-- Upload fallback (desktop or an existing photo/PDF) -->
+  <label for="upload" class="btn ghost" style="cursor:pointer;">Upload a photo or PDF instead</label>
+  <input id="upload" name="file" type="file" accept="image/*,application/pdf" hidden
+         onchange="document.getElementById('scanForm').submit()">
+</form>
+
+<p id="working" class="muted" style="text-align:center;margin-top:16px;display:none;">Checking your document…</p>
+<script>
+  document.getElementById('scanForm').addEventListener('submit', function(){
+    document.getElementById('working').style.display = 'block';
+  });
+</script>
+
+{% if recent %}
+<h2 style="font-size:15px;margin:26px 0 10px;color:var(--muted);">Recent</h2>
+<div style="display:flex;flex-direction:column;gap:10px;">
+  {% for s in recent %}
+  {% set vc = {"ready":"var(--ok)","fix":"var(--block)","unreadable":"var(--warn)","unknown":"var(--warn)"}[s.verdict] %}
+  <a href="/scan/{{ s.scan_id }}" class="card" style="display:flex;align-items:center;justify-content:space-between;text-decoration:none;color:inherit;padding:13px 15px;">
+    <span>
+      <span style="font-weight:650;">{{ s.doc_type.replace("_"," ").title() }}</span><br>
+      <span class="muted" style="font-size:12px;">{{ s.created_at.replace("T"," ") }} UTC</span>
+    </span>
+    <span style="color:{{ vc }};font-weight:700;font-size:13px;text-transform:capitalize;">{{ s.verdict }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

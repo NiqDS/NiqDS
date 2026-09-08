@@ -58,6 +58,24 @@ accuracy reported separately** from rule accuracy. Target for the demo — met �
 is **zero false positives on `BLOCK`-severity rules**: a false BLOCK sends a
 client a wrong chase message, the one failure mode that loses the account.
 
+## Scan app (phone-first, single document)
+
+Alongside the practice bundle tool there's a mobile-first **scan app** — the
+SME-facing flow: **log in → take/upload a photo → it identifies the document and
+checks, field by field, whether it's complete and correct**, then gives a plain
+verdict ("Looks complete" / "A few things to fix") with an audit trail back to the
+named rules.
+
+- `GET /signup`, `GET /login`, `GET /logout` — session auth (scrypt-hashed
+  passwords, signed session cookie).
+- `GET /app` — capture screen (uses the phone camera via `capture="environment"`).
+- `POST /scan` → `GET /scan/{id}` — result: identified type + per-field checklist.
+
+It reuses the same deterministic engine (`app/single.py` runs the document-scoped
+rules and maps each flag to a field) — so every verdict is auditable, not an AI
+guess. Auth is prototype-grade (no email verification / reset / rate-limiting yet);
+those belong in the Phase 1 platform build.
+
 ## Concierge CLI (run a bundle without the web app)
 
 For manual / batch delivery — point it at a folder of a client's documents and
