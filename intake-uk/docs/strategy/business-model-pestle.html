@@ -1,0 +1,311 @@
+<title>Бизнес-модель Intake Gate</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --paper:#f4f7fb; --surface:#ffffff; --surface-2:#eaf0f7;
+    --ink:#0f1f2c; --muted:#556472; --faint:#7b8794;
+    --line:#dbe3ec; --line-strong:#c4d0dd;
+    --accent:#1f6feb; --accent-soft:#e7f0ff; --accent-ink:#12468f;
+    --navy:#0d1e2c; --on-navy:#d7e4f0; --on-navy-soft:#8ea6bb;
+    --good:#1e8449; --good-bg:#e7f3ec; --amber:#a9770b; --amber-bg:#f6eed8; --crit:#c0392b;
+    --shadow:0 1px 2px rgba(16,33,47,.05), 0 12px 30px rgba(16,33,47,.06);
+    --serif:Georgia,"Iowan Old Style","Times New Roman",serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#0a141d; --surface:#0f1e2a; --surface-2:#152634;
+      --ink:#e8eff6; --muted:#9fb0bf; --faint:#7f92a2;
+      --line:#22333f; --line-strong:#2c4150;
+      --accent:#5a9bff; --accent-soft:#152c46; --accent-ink:#bcd6ff;
+      --navy:#081420; --on-navy:#d7e4f0; --on-navy-soft:#7f97ac;
+      --good:#3caf6d; --good-bg:#12281d; --amber:#d0a13c; --amber-bg:#2c2411; --crit:#df6a5b;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 14px 34px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0a141d; --surface:#0f1e2a; --surface-2:#152634;
+    --ink:#e8eff6; --muted:#9fb0bf; --faint:#7f92a2;
+    --line:#22333f; --line-strong:#2c4150;
+    --accent:#5a9bff; --accent-soft:#152c46; --accent-ink:#bcd6ff;
+    --navy:#081420; --on-navy:#d7e4f0; --on-navy-soft:#7f97ac;
+    --good:#3caf6d; --good-bg:#12281d; --amber:#d0a13c; --amber-bg:#2c2411; --crit:#df6a5b;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 14px 34px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 22px;}
+  h1,h2,h3{font-family:var(--serif);font-weight:700;text-wrap:balance;letter-spacing:-.01em;}
+  h2{font-size:24px;margin:0 0 4px;}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;font-weight:600;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--accent);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  strong{font-weight:650;color:var(--ink);}
+
+  header.hero{background:var(--navy);color:var(--on-navy);padding:46px 0 40px;}
+  .hero .badge{display:inline-flex;align-items:center;gap:9px;margin-bottom:16px;}
+  .hero .badge span{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--on-navy);}
+  .hero h1{font-size:clamp(28px,4.4vw,40px);line-height:1.08;margin:0 0 12px;color:#fff;}
+  .hero p{font-size:17px;color:var(--on-navy);max-width:660px;margin:0;}
+  .hero .meta{margin-top:18px;font-family:var(--mono);font-size:11.5px;color:var(--on-navy-soft);}
+
+  section{padding:40px 0;border-bottom:1px solid var(--line);}
+  .sec-head{margin-bottom:20px;}
+  .sec-head .lead{color:var(--muted);max-width:720px;margin:6px 0 0;font-size:15px;}
+
+  /* Business Model Canvas grid */
+  .bmc{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;
+    grid-template-areas:"kp ka vp cr cs" "kp kr vp ch cs";}
+  .bmc2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;}
+  .kp{grid-area:kp}.ka{grid-area:ka}.kr{grid-area:kr}.vp{grid-area:vp}
+  .cr{grid-area:cr}.ch{grid-area:ch}.cs{grid-area:cs}
+  .cell{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+    padding:14px 15px;box-shadow:var(--shadow);}
+  .cell .lbl{display:flex;align-items:baseline;gap:7px;margin-bottom:8px;}
+  .cell .n{font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;background:var(--navy);
+    border-radius:5px;padding:1px 6px;font-variant-numeric:tabular-nums;}
+  .cell h3{font-size:14.5px;margin:0;}
+  .cell .en{font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--faint);text-transform:uppercase;display:block;margin-top:1px;}
+  .cell ul{margin:0;padding-left:16px;font-size:12.7px;color:var(--muted);line-height:1.42;}
+  .cell li{margin:3px 0;}
+  .cell.vp{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent);}
+  .cell.vp .n{background:var(--accent);}
+  .cell.vp h3{color:var(--accent-ink);}
+  .cell.rev{background:var(--good-bg);border-color:transparent;}
+  .cell.rev .n{background:var(--good);}
+  @media (max-width:860px){
+    .bmc{grid-template-columns:1fr;grid-template-areas:"vp" "cs" "cr" "ch" "ka" "kr" "kp";}
+    .bmc2{grid-template-columns:1fr;}
+  }
+
+  /* PESTLE cards */
+  .pestle{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .pcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow);}
+  .pcard .top{display:flex;align-items:center;gap:11px;margin-bottom:10px;}
+  .pcard .let{width:34px;height:34px;border-radius:9px;background:var(--navy);color:#fff;
+    font-family:var(--serif);font-weight:700;font-size:18px;display:grid;place-items:center;flex:0 0 auto;}
+  .pcard h3{font-size:16px;margin:0;}
+  .pcard .ru{font-size:12px;color:var(--faint);font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;}
+  .pcard ul{margin:0;padding-left:17px;font-size:13.5px;color:var(--muted);line-height:1.5;}
+  .pcard li{margin:5px 0;}
+  .pcard .impl{margin-top:12px;padding:10px 12px;background:var(--surface-2);border-radius:9px;font-size:13px;}
+  .pcard .impl b{color:var(--accent);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;display:block;margin-bottom:3px;}
+  @media (max-width:900px){.pestle{grid-template-columns:1fr 1fr;}}
+  @media (max-width:620px){.pestle{grid-template-columns:1fr;}}
+
+  .note{font-size:12.5px;color:var(--faint);font-style:italic;}
+  footer{padding:26px 0 56px;}
+  .disclaim{background:var(--surface-2);border-radius:12px;padding:14px 16px;font-size:12.5px;color:var(--muted);}
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="badge">
+      <svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true">
+        <rect x="4" y="4" width="56" height="56" rx="13" fill="#0d1e2c" stroke="#3f7fe0" stroke-width="3"/>
+        <path d="M20 33 l8 8 l17 -19" fill="none" stroke="#3caf6d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Intake Gate · стратегия</span>
+    </div>
+    <h1>Бизнес-модель и PESTLE-анализ</h1>
+    <p>Проект Intake Gate — слой контроля качества «первички» для британских бухгалтерских практик: ловит
+      неполные и ошибочные комплекты документов на входе и пишет клиенту готовое письмо-запрос. Ниже — модель по
+      Остервальдеру и анализ внешней среды.</p>
+    <div class="meta">Черновик · рынок UK · часть цифр — гипотезы к проверке</div>
+  </div>
+</header>
+
+<main>
+  <!-- ===== BUSINESS MODEL CANVAS ===== -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Модель Остервальдера · Business Model Canvas</span>
+        <h2>Девять блоков модели</h2>
+        <p class="lead">В центре — ценностное предложение: аудируемая проверка (модель извлекает, детерминированный
+          код решает), которую можно продать профессионально ответственному покупателю.</p>
+      </div>
+
+      <div class="bmc">
+        <div class="cell kp">
+          <div class="lbl"><span class="n">8</span><div><h3>Ключевые партнёры</h3><span class="en">Key partners</span></div></div>
+          <ul>
+            <li>Бухгалтерское ПО: Xero, QuickBooks, FreeAgent (директории, маркетплейсы приложений)</li>
+            <li>Проф. организации: AAT, ICB, IAB, ICAEW</li>
+            <li>Capture-инструменты (Dext, AutoEntry) — не конкуренты, а импорт/комплемент</li>
+            <li>LLM-провайдеры (Anthropic / OpenAI) — извлечение данных</li>
+            <li>Google / Microsoft — OAuth для черновиков писем; хостинг</li>
+          </ul>
+        </div>
+
+        <div class="cell ka">
+          <div class="lbl"><span class="n">7</span><div><h3>Ключевые действия</h3><span class="en">Key activities</span></div></div>
+          <ul>
+            <li>Развитие и сопровождение библиотеки UK-правил (держать 0 ложных BLOCK)</li>
+            <li>Точность извлечения документов</li>
+            <li>Продажи/маркетинг вокруг дедлайнов MTD; онбординг практик</li>
+            <li>Интеграции (write-back в учётные системы)</li>
+          </ul>
+        </div>
+        <div class="cell kr">
+          <div class="lbl"><span class="n">6</span><div><h3>Ключевые ресурсы</h3><span class="en">Key resources</span></div></div>
+          <ul>
+            <li>Детерминированная библиотека правил + eval-харнес — главный аудируемый актив</li>
+            <li>Кодовая база: движок (FastAPI), iOS-приложение, JSON API, OAuth</li>
+            <li>Доменная экспертиза (бухучёт UK, MTD)</li>
+            <li>Дизайн-партнёры, реальные данные, кейсы и отзывы</li>
+          </ul>
+        </div>
+
+        <div class="cell vp">
+          <div class="lbl"><span class="n">1</span><div><h3>Ценностное предложение</h3><span class="en">Value propositions</span></div></div>
+          <ul>
+            <li><strong>Практикам:</strong> экономим самый дорогой небиллируемый час — погоню за документами; готовое письмо-запрос</li>
+            <li><strong>Аудируемость:</strong> каждый флаг = именованное правило с причиной, не «чёрный ящик»</li>
+            <li><strong>Проверки на уровне комплекта:</strong> пропущенный месяц выписки, целый забытый счёт, дубли, документы вне периода — то, чего нет у capture-инструментов</li>
+            <li><strong>SME:</strong> «зелёный свет» перед отправкой бухгалтеру; меньше переписки</li>
+            <li>Ничего не подаётся в HMRC — это pre-submission QA; точная арифметика (Decimal), UK-правила (VAT check digit)</li>
+          </ul>
+        </div>
+
+        <div class="cell cr">
+          <div class="lbl"><span class="n">4</span><div><h3>Отношения с клиентами</h3><span class="en">Relationships</span></div></div>
+          <ul>
+            <li>Фаза 0 — concierge / высокое касание (дизайн-партнёры)</li>
+            <li>Дальше — self-serve SaaS + онбординг + поддержка</li>
+            <li>Реферальная петля: SME ⇄ бухгалтер</li>
+            <li>Доверие через аудит-трейл и «клиентобезопасные» тексты</li>
+          </ul>
+        </div>
+        <div class="cell ch">
+          <div class="lbl"><span class="n">3</span><div><h3>Каналы</h3><span class="en">Channels</span></div></div>
+          <ul>
+            <li>Прямые продажи (основатель-led), проф. организации и их мероприятия</li>
+            <li>AccountingWEB, LinkedIn, Facebook-группы бухгалтеров</li>
+            <li>Директории партнёров Xero/QBO/FreeAgent + маркетплейсы</li>
+            <li>Контент к дедлайнам MTD; веб- и iOS-приложение</li>
+          </ul>
+        </div>
+
+        <div class="cell cs">
+          <div class="lbl"><span class="n">2</span><div><h3>Сегменты клиентов</h3><span class="en">Customer segments</span></div></div>
+          <ul>
+            <li><strong>Ядро:</strong> малые практики и независимые бухгалтеры UK (5–40 клиентов), особенно с клиентами под MTD</li>
+            <li><strong>Воронка/wedge:</strong> микробизнес — самозанятые и арендодатели под MTD</li>
+            <li><strong>Позже:</strong> крупные фирмы / франшизы — white-label</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="bmc2">
+        <div class="cell cost">
+          <div class="lbl"><span class="n">9</span><div><h3>Структура затрат</h3><span class="en">Cost structure</span></div></div>
+          <ul>
+            <li>Разработка и сопровождение правил (инженеры) — основная статья</li>
+            <li>LLM API — переменные затраты на извлечение (mock/детерминированная часть — дёшево)</li>
+            <li>Хостинг/инфраструктура (Postgres, хранение файлов)</li>
+            <li>Продажи/маркетинг (CAC); юридическое/соответствие (GDPR, ICO, верификация OAuth); поддержка</li>
+            <li>Ценность &gt;&gt; цены (≈10×) — главный рычаг — дистрибуция, а не оправдание стоимости</li>
+          </ul>
+        </div>
+        <div class="cell rev">
+          <div class="lbl"><span class="n">5</span><div><h3>Потоки доходов</h3><span class="en">Revenue streams</span></div></div>
+          <ul>
+            <li>Подписка SaaS; метрика ценности — <strong>активные клиенты в месяц</strong></li>
+            <li>Тиры: Free / Starter ~£39–49 / Practice ~£129–149 / Scale (custom); SME Solo ~£6–9 или бесплатно через бухгалтера</li>
+            <li>Overage за доп. клиентов; годовая оплата со скидкой (~2 месяца бесплатно)</li>
+            <li>Позже — премиум-модули (onboarding/AML, CIS, landlord), white-label, интеграции</li>
+            <li>Не-дилютивно: гранты Innovate UK, R&amp;D tax relief</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== PESTLE ===== -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Анализ внешней среды · PESTLE</span>
+        <h2>Факторы и что они значат для нас</h2>
+        <p class="lead">Главный вывод: MTD (переход на квартальную цифровую отчётность) — сильнейший попутный
+          фактор, а аудируемая, детерминированная архитектура — ответ на низкое доверие к «ИИ-чёрным ящикам».</p>
+      </div>
+
+      <div class="pestle">
+        <div class="pcard">
+          <div class="top"><div class="let">P</div><div><h3>Политические</h3><div class="ru">Political</div></div></div>
+          <ul>
+            <li>MTD — гос. инициатива HMRC; сильный политический драйвер спроса</li>
+            <li>Дедлайны сдвигались ранее — риск переноса</li>
+            <li>Курс на цифровизацию налогов и малого бизнеса; растущее регулирование ИИ</li>
+          </ul>
+          <div class="impl"><b>Что это значит</b>Не ставить бизнес на одну дату: боль «неполной первички» существует и без MTD — MTD лишь делает её квартальной и срочной.</div>
+        </div>
+
+        <div class="pcard">
+          <div class="top"><div class="let">E</div><div><h3>Экономические</h3><div class="ru">Economic</div></div></div>
+          <ul>
+            <li>Рынок фрагментирован: ~40k бухгалтерских фирм, ~17k bookkeeping-фирм</li>
+            <li>Готовность платить подтверждена (Dext ~£190–240/мес за 10 клиентов)</li>
+            <li>Час бухгалтера ~£30–40 — экономия времени легко оправдывает цену</li>
+            <li>Рецессия давит на расходы, но compliance обязателен</li>
+          </ul>
+          <div class="impl"><b>Что это значит</b>Ценность на клиента (~£120–160/год) на порядок выше цены — фокус на дистрибуцию.</div>
+        </div>
+
+        <div class="pcard">
+          <div class="top"><div class="let">S</div><div><h3>Социальные</h3><div class="ru">Social</div></div></div>
+          <ul>
+            <li>~864k новых цифровых деклараторов, часто неподготовленных</li>
+            <li>У профессионально ответственных бухгалтеров низкое доверие к «чёрному ящику»</li>
+            <li>Малые практики часто не «техно-первые»; SME ждут mobile-first</li>
+          </ul>
+          <div class="impl"><b>Что это значит</b>Продавать аудируемость и простоту («зелёный свет», plain-English), а не «ИИ».</div>
+        </div>
+
+        <div class="pcard">
+          <div class="top"><div class="let">T</div><div><h3>Технологические</h3><div class="ru">Technological</div></div></div>
+          <ul>
+            <li>LLM быстро улучшаются и дешевеют (лучше извлечение)</li>
+            <li>Зрелые API интеграций (Xero/QBO/FreeAgent)</li>
+            <li>Риск зависимости от LLM-провайдера; риск, что Dext добавит проверку</li>
+          </ul>
+          <div class="impl"><b>Что это значит</b>Детерминированный слой снижает модельный риск и создаёт ров; адаптер делает провайдера сменным.</div>
+        </div>
+
+        <div class="pcard">
+          <div class="top"><div class="let">L</div><div><h3>Юридические</h3><div class="ru">Legal</div></div></div>
+          <ul>
+            <li>UK GDPR / DPA: обработка финансовых данных, роль процессора, DPA с клиентами, регистрация ICO</li>
+            <li>AML: модуль онбординга — только полнота пакета, не суждение о риске</li>
+            <li>Граница регулируемых услуг: мы — QA, <strong>не налоговый совет</strong>; ничего не подаём в HMRC</li>
+            <li>Верификация OAuth (Google/Microsoft), условия LLM по данным</li>
+          </ul>
+          <div class="impl"><b>Что это значит</b>«Records QA, не совет» + минимальные права (только черновики) — держим себя вне регулируемой зоны.</div>
+        </div>
+
+        <div class="pcard">
+          <div class="top"><div class="let">E</div><div><h3>Экологические</h3><div class="ru">Environmental</div></div></div>
+          <ul>
+            <li>Прямое влияние минимально (SaaS); цифровизация снижает бумагу</li>
+            <li>Углеродный след LLM/дата-центров — ESG-соображение при выборе провайдеров/хостинга</li>
+            <li>ESG-отчётность клиентов может стать драйвером позже</li>
+          </ul>
+          <div class="impl"><b>Что это значит</b>Наименее релевантный фактор сейчас; держать как ESG-пункт для будущих тендеров.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <div class="disclaim">Черновик для внутренней проработки. Рыночные цифры (число фирм, аудитория MTD,
+        цены конкурентов) взяты из открытых источников и приведены как ориентир; тарифы — гипотезы к проверке в
+        Фазе 0. Intake Gate выполняет контроль качества документов, не даёт налоговых консультаций и не подаёт
+        данные в HMRC.</div>
+    </div>
+  </footer>
+</main>
