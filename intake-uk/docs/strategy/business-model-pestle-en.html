@@ -1,0 +1,373 @@
+<title>Intake Gate Business Model</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --paper:#f4f7fb; --surface:#ffffff; --surface-2:#eaf0f7;
+    --ink:#0f1f2c; --muted:#556472; --faint:#7b8794;
+    --line:#dbe3ec; --line-strong:#c4d0dd;
+    --accent:#1f6feb; --accent-soft:#e7f0ff; --accent-ink:#12468f;
+    --navy:#0d1e2c; --on-navy:#d7e4f0; --on-navy-soft:#8ea6bb;
+    --good:#1e8449; --good-bg:#e7f3ec; --amber:#a9770b; --amber-bg:#f6eed8; --crit:#c0392b; --crit-bg:#f7e4e1;
+    --shadow:0 1px 2px rgba(16,33,47,.05), 0 12px 30px rgba(16,33,47,.06);
+    --serif:Georgia,"Iowan Old Style","Times New Roman",serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#0a141d; --surface:#0f1e2a; --surface-2:#152634;
+      --ink:#e8eff6; --muted:#9fb0bf; --faint:#7f92a2;
+      --line:#22333f; --line-strong:#2c4150;
+      --accent:#5a9bff; --accent-soft:#152c46; --accent-ink:#bcd6ff;
+      --navy:#081420; --on-navy:#d7e4f0; --on-navy-soft:#7f97ac;
+      --good:#3caf6d; --good-bg:#12281d; --amber:#d0a13c; --amber-bg:#2c2411; --crit:#df6a5b; --crit-bg:#2e1512;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 14px 34px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0a141d; --surface:#0f1e2a; --surface-2:#152634;
+    --ink:#e8eff6; --muted:#9fb0bf; --faint:#7f92a2;
+    --line:#22333f; --line-strong:#2c4150;
+    --accent:#5a9bff; --accent-soft:#152c46; --accent-ink:#bcd6ff;
+    --navy:#081420; --on-navy:#d7e4f0; --on-navy-soft:#7f97ac;
+    --good:#3caf6d; --good-bg:#12281d; --amber:#d0a13c; --amber-bg:#2c2411; --crit:#df6a5b; --crit-bg:#2e1512;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 14px 34px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 22px;}
+  h1,h2,h3{font-family:var(--serif);font-weight:700;text-wrap:balance;letter-spacing:-.01em;}
+  h2{font-size:24px;margin:0 0 4px;}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;font-weight:600;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--accent);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  strong{font-weight:650;color:var(--ink);}
+
+  header.hero{background:var(--navy);color:var(--on-navy);padding:46px 0 40px;}
+  .hero .badge{display:inline-flex;align-items:center;gap:9px;margin-bottom:16px;}
+  .hero .badge span{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--on-navy);}
+  .hero h1{font-size:clamp(28px,4.4vw,40px);line-height:1.08;margin:0 0 12px;color:#fff;}
+  .hero p{font-size:17px;color:var(--on-navy);max-width:680px;margin:0;}
+  .hero .meta{margin-top:18px;font-family:var(--mono);font-size:11.5px;color:var(--on-navy-soft);}
+
+  section{padding:40px 0;border-bottom:1px solid var(--line);}
+  .sec-head{margin-bottom:20px;}
+  .sec-head .lead{color:var(--muted);max-width:740px;margin:6px 0 0;font-size:15px;}
+
+  .bmc{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;
+    grid-template-areas:"kp ka vp cr cs" "kp kr vp ch cs";}
+  .bmc2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;}
+  .kp{grid-area:kp}.ka{grid-area:ka}.kr{grid-area:kr}.vp{grid-area:vp}
+  .cr{grid-area:cr}.ch{grid-area:ch}.cs{grid-area:cs}
+  .cell{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+    padding:14px 15px;box-shadow:var(--shadow);}
+  .cell .lbl{display:flex;align-items:baseline;gap:7px;margin-bottom:8px;}
+  .cell .n{font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;background:var(--navy);
+    border-radius:5px;padding:1px 6px;font-variant-numeric:tabular-nums;}
+  .cell h3{font-size:14.5px;margin:0;}
+  .cell ul{margin:0;padding-left:16px;font-size:12.7px;color:var(--muted);line-height:1.42;}
+  .cell li{margin:3px 0;}
+  .cell.vp{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent);}
+  .cell.vp .n{background:var(--accent);}
+  .cell.vp h3{color:var(--accent-ink);}
+  .cell.rev{background:var(--good-bg);border-color:transparent;}
+  .cell.rev .n{background:var(--good);}
+  @media (max-width:860px){
+    .bmc{grid-template-columns:1fr;grid-template-areas:"vp" "cs" "cr" "ch" "ka" "kr" "kp";}
+    .bmc2{grid-template-columns:1fr;}
+  }
+
+  .pestle{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .pcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow);}
+  .pcard .top{display:flex;align-items:center;gap:11px;margin-bottom:10px;}
+  .pcard .let{width:34px;height:34px;border-radius:9px;background:var(--navy);color:#fff;
+    font-family:var(--serif);font-weight:700;font-size:18px;display:grid;place-items:center;flex:0 0 auto;}
+  .pcard h3{font-size:16px;margin:0;}
+  .pcard ul{margin:0;padding-left:17px;font-size:13.5px;color:var(--muted);line-height:1.5;}
+  .pcard li{margin:5px 0;}
+  .pcard .impl{margin-top:12px;padding:10px 12px;background:var(--surface-2);border-radius:9px;font-size:13px;}
+  .pcard .impl b{color:var(--accent);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;display:block;margin-bottom:3px;}
+  @media (max-width:900px){.pestle{grid-template-columns:1fr 1fr;}}
+  @media (max-width:620px){.pestle{grid-template-columns:1fr;}}
+
+  .swot{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .quad{border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow);background:var(--surface);}
+  .quad .qh{display:flex;align-items:center;gap:11px;margin-bottom:10px;}
+  .quad .qi{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;
+    font-family:var(--serif);font-weight:700;font-size:16px;flex:0 0 auto;}
+  .quad h3{font-size:16px;margin:0;} .quad .qr{font-size:11px;color:var(--faint);font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;}
+  .quad ul{margin:0;padding-left:17px;font-size:13.3px;color:var(--muted);line-height:1.48;}
+  .quad li{margin:5px 0;}
+  .quad.s{background:var(--good-bg);border-color:transparent;} .quad.s .qi{background:var(--good);}
+  .quad.w{background:var(--amber-bg);border-color:transparent;} .quad.w .qi{background:var(--amber);}
+  .quad.o{background:var(--accent-soft);border-color:transparent;} .quad.o .qi{background:var(--accent);}
+  .quad.t{background:var(--crit-bg);border-color:transparent;} .quad.t .qi{background:var(--crit);}
+  @media (max-width:620px){.swot{grid-template-columns:1fr;}}
+
+  footer{padding:26px 0 56px;}
+  .disclaim{background:var(--surface-2);border-radius:12px;padding:14px 16px;font-size:12.5px;color:var(--muted);}
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="badge">
+      <svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true">
+        <rect x="4" y="4" width="56" height="56" rx="13" fill="#0d1e2c" stroke="#3f7fe0" stroke-width="3"/>
+        <path d="M20 33 l8 8 l17 -19" fill="none" stroke="#3caf6d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Intake Gate · strategy</span>
+    </div>
+    <h1>Business Model, PESTLE &amp; SWOT</h1>
+    <p>Intake Gate is the records-QA layer for UK bookkeeping practices: it catches incomplete or wrong client
+      document bundles on arrival and drafts the exact chase email. Below: the Osterwalder Business Model Canvas
+      plus a PESTLE and SWOT analysis.</p>
+    <div class="meta">Draft · UK market · some figures are hypotheses to validate</div>
+  </div>
+</header>
+
+<main>
+  <!-- ===== BUSINESS MODEL CANVAS ===== -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Osterwalder · Business Model Canvas</span>
+        <h2>The nine building blocks</h2>
+        <p class="lead">At the centre sits the value proposition: an auditable check (the model extracts,
+          deterministic code decides) you can sell to a professionally-liable buyer.</p>
+      </div>
+
+      <div class="bmc">
+        <div class="cell kp">
+          <div class="lbl"><span class="n">8</span><h3>Key partners</h3></div>
+          <ul>
+            <li>Accounting software: Xero, QuickBooks, FreeAgent (directories, app marketplaces)</li>
+            <li>Professional bodies: AAT, ICB, IAB, ICAEW</li>
+            <li>Capture tools (Dext, AutoEntry) — complement/import, not competitors</li>
+            <li>LLM providers (Anthropic / OpenAI) — extraction</li>
+            <li>Google / Microsoft — OAuth for email drafts; hosting</li>
+          </ul>
+        </div>
+
+        <div class="cell ka">
+          <div class="lbl"><span class="n">7</span><h3>Key activities</h3></div>
+          <ul>
+            <li>Building &amp; maintaining the UK rule library (hold zero false BLOCKs)</li>
+            <li>Document-extraction accuracy</li>
+            <li>Sales/marketing around MTD deadlines; practice onboarding</li>
+            <li>Integrations (write-back to accounting systems)</li>
+          </ul>
+        </div>
+        <div class="cell kr">
+          <div class="lbl"><span class="n">6</span><h3>Key resources</h3></div>
+          <ul>
+            <li>Deterministic rule library + eval harness — the core auditable asset</li>
+            <li>Codebase: engine (FastAPI), iOS app, JSON API, OAuth</li>
+            <li>Domain expertise (UK bookkeeping, MTD)</li>
+            <li>Design partners, real data, case studies &amp; testimonials</li>
+          </ul>
+        </div>
+
+        <div class="cell vp">
+          <div class="lbl"><span class="n">1</span><h3>Value propositions</h3></div>
+          <ul>
+            <li><strong>For practices:</strong> save the most expensive unbillable hour — chasing documents; a ready-to-send chase email</li>
+            <li><strong>Auditable:</strong> every flag = a named rule with a reason, not a black box</li>
+            <li><strong>Bundle-level checks:</strong> missing month of statements, a whole forgotten account, duplicates, out-of-period docs — what capture tools don't do</li>
+            <li><strong>For SMEs:</strong> a "green light" before sending to the accountant; less back-and-forth</li>
+            <li>Nothing filed with HMRC — pre-submission QA; exact arithmetic (Decimal), UK rules (VAT check digit)</li>
+          </ul>
+        </div>
+
+        <div class="cell cr">
+          <div class="lbl"><span class="n">4</span><h3>Customer relationships</h3></div>
+          <ul>
+            <li>Phase 0 — concierge / high-touch (design partners)</li>
+            <li>Then — self-serve SaaS + onboarding + support</li>
+            <li>Referral loop: SME ⇄ accountant</li>
+            <li>Trust via audit trail and client-safe copy</li>
+          </ul>
+        </div>
+        <div class="cell ch">
+          <div class="lbl"><span class="n">3</span><h3>Channels</h3></div>
+          <ul>
+            <li>Direct/founder-led sales; professional bodies &amp; their events</li>
+            <li>AccountingWEB, LinkedIn, bookkeeper Facebook groups</li>
+            <li>Xero/QBO/FreeAgent advisor directories + marketplaces</li>
+            <li>MTD-deadline content; web &amp; iOS app</li>
+          </ul>
+        </div>
+
+        <div class="cell cs">
+          <div class="lbl"><span class="n">2</span><h3>Customer segments</h3></div>
+          <ul>
+            <li><strong>Core:</strong> small UK practices &amp; independent bookkeepers (5–40 clients), especially with MTD clients</li>
+            <li><strong>Wedge/funnel:</strong> micro-businesses — sole traders &amp; landlords under MTD</li>
+            <li><strong>Later:</strong> larger firms / franchises — white-label</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="bmc2">
+        <div class="cell cost">
+          <div class="lbl"><span class="n">9</span><h3>Cost structure</h3></div>
+          <ul>
+            <li>Engineering &amp; rule maintenance — the main line</li>
+            <li>LLM API — variable extraction cost (mock/deterministic part is cheap)</li>
+            <li>Hosting/infrastructure (Postgres, file storage)</li>
+            <li>Sales/marketing (CAC); legal/compliance (GDPR, ICO, OAuth verification); support</li>
+            <li>Value &gt;&gt; price (≈10×) — the lever is distribution, not justifying the cost</li>
+          </ul>
+        </div>
+        <div class="cell rev">
+          <div class="lbl"><span class="n">5</span><h3>Revenue streams</h3></div>
+          <ul>
+            <li>SaaS subscription; value metric — <strong>active clients per month</strong></li>
+            <li>Tiers: Free / Starter ~£39–49 / Practice ~£129–149 / Scale (custom); SME Solo ~£6–9 or free via the accountant</li>
+            <li>Overage for extra clients; annual billing at a discount (~2 months free)</li>
+            <li>Later — premium modules (onboarding/AML, CIS, landlord), white-label, integrations</li>
+            <li>Non-dilutive: Innovate UK grants, R&amp;D tax relief</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== PESTLE ===== -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Macro-environment · PESTLE</span>
+        <h2>Factors — and what each means for us</h2>
+        <p class="lead">Headline: MTD (the shift to quarterly digital reporting) is the strongest tailwind, and an
+          auditable, deterministic architecture is the answer to low trust in "AI black boxes".</p>
+      </div>
+
+      <div class="pestle">
+        <div class="pcard">
+          <div class="top"><div class="let">P</div><h3>Political</h3></div>
+          <ul>
+            <li>MTD is an HMRC government initiative — a strong political demand driver</li>
+            <li>Deadlines have slipped before — risk of further delay</li>
+            <li>Drive to digitise tax and small business; rising AI regulation</li>
+          </ul>
+          <div class="impl"><b>What it means</b>Don't bet the company on one date: the "incomplete records" pain exists without MTD — MTD just makes it quarterly and urgent.</div>
+        </div>
+
+        <div class="pcard">
+          <div class="top"><div class="let">E</div><h3>Economic</h3></div>
+          <ul>
+            <li>Fragmented market: ~40k accountancy firms, ~17k bookkeeping firms</li>
+            <li>Willingness to pay proven (Dext ~£190–240/mo for 10 clients)</li>
+            <li>A bookkeeper-hour ~£30–40 — time saved easily justifies the price</li>
+            <li>Recession pressures spend, but compliance is non-optional</li>
+          </ul>
+          <div class="impl"><b>What it means</b>Value per client (~£120–160/yr) is an order of magnitude above price — focus on distribution.</div>
+        </div>
+
+        <div class="pcard">
+          <div class="top"><div class="let">S</div><h3>Social</h3></div>
+          <ul>
+            <li>~864k new digital filers, many unprepared</li>
+            <li>Professionally-liable accountants distrust "black box" tools</li>
+            <li>Small practices often not tech-first; SMEs expect mobile-first</li>
+          </ul>
+          <div class="impl"><b>What it means</b>Sell auditability and simplicity ("green light", plain English), not "AI".</div>
+        </div>
+
+        <div class="pcard">
+          <div class="top"><div class="let">T</div><h3>Technological</h3></div>
+          <ul>
+            <li>LLMs improving and getting cheaper (better extraction)</li>
+            <li>Mature integration APIs (Xero/QBO/FreeAgent)</li>
+            <li>LLM-provider dependency risk; risk that Dext adds validation</li>
+          </ul>
+          <div class="impl"><b>What it means</b>The deterministic layer lowers model risk and builds a moat; the adapter keeps the provider swappable.</div>
+        </div>
+
+        <div class="pcard">
+          <div class="top"><div class="let">L</div><h3>Legal</h3></div>
+          <ul>
+            <li>UK GDPR / DPA: financial-data processing, processor role, DPAs with clients, ICO registration</li>
+            <li>AML: an onboarding module checks pack completeness only, not risk judgement</li>
+            <li>Regulated-services line: we are QA, <strong>not tax advice</strong>; nothing filed with HMRC</li>
+            <li>OAuth verification (Google/Microsoft); LLM data terms</li>
+          </ul>
+          <div class="impl"><b>What it means</b>"Records QA, not advice" + least privilege (drafts only) keeps us out of the regulated zone.</div>
+        </div>
+
+        <div class="pcard">
+          <div class="top"><div class="let">E</div><h3>Environmental</h3></div>
+          <ul>
+            <li>Direct impact minimal (SaaS); digitising reduces paper</li>
+            <li>LLM/data-centre carbon footprint — an ESG factor in provider/hosting choice</li>
+            <li>Client ESG reporting may become a driver later</li>
+          </ul>
+          <div class="impl"><b>What it means</b>Least relevant factor now; keep as an ESG line for future tenders.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SWOT ===== -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Internal × external · SWOT</span>
+        <h2>Strengths, weaknesses, opportunities and threats</h2>
+        <p class="lead">Strategy link: press strength × opportunity (auditability × the MTD wave) and close the
+          weaknesses (prove accuracy on real data, add an accounting advisor) before scaling.</p>
+      </div>
+      <div class="swot">
+        <div class="quad s">
+          <div class="qh"><div class="qi">S</div><div><h3>Strengths</h3><div class="qr">Internal +</div></div></div>
+          <ul>
+            <li>Deterministic, auditable rules engine — sellable to a liable buyer; a real moat</li>
+            <li>Bundle-level checks competitors don't do (missing statement, forgotten account)</li>
+            <li>Working prototype: full loop, 81 tests, zero false BLOCKs, web + iOS + JSON API + OAuth drafts</li>
+            <li>UK-specific rules (VAT check digit, MTD period logic)</li>
+            <li>Provider-agnostic LLM adapter — low model lock-in</li>
+          </ul>
+        </div>
+        <div class="quad w">
+          <div class="qh"><div class="qi">W</div><div><h3>Weaknesses</h3><div class="qr">Internal −</div></div></div>
+          <ul>
+            <li>Pre-revenue: no customers or traction, pricing unproven</li>
+            <li>Small team, no named accounting advisor yet (credibility gap)</li>
+            <li>"Feature not a company" risk — narrow initial scope</li>
+            <li>Extraction accuracy on messy scans unproven at scale</li>
+            <li>Prototype-grade auth/security; no multi-tenancy or deployment (Phase 1 work)</li>
+          </ul>
+        </div>
+        <div class="quad o">
+          <div class="qh"><div class="qi">O</div><div><h3>Opportunities</h3><div class="qr">External +</div></div></div>
+          <ul>
+            <li>MTD ITSA (2026→2028): ~864k, then millions, into quarterly filing</li>
+            <li>Fragmented market (~40k firms) with proven willingness to pay</li>
+            <li>Adjacent modules (onboarding/AML, CIS, landlord, VAT-period) raise ACV</li>
+            <li>SME wedge → referral loop into practices; non-dilutive grants</li>
+            <li>Xero/QBO marketplace listings; white-label for larger firms</li>
+          </ul>
+        </div>
+        <div class="quad t">
+          <div class="qh"><div class="qi">T</div><div><h3>Threats</h3><div class="qr">External −</div></div></div>
+          <ul>
+            <li>Incumbents (Dext/AutoEntry) could add validation</li>
+            <li>MTD deadlines could slip again (timing risk)</li>
+            <li>LLM-provider dependency (price/quality/policy)</li>
+            <li>Drift into "tax advice"/AML judgement if the line isn't held</li>
+            <li>GDPR/data-security incidents; long, conservative sales cycles</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <div class="disclaim">Internal working draft. Market figures (firm counts, MTD audience, competitor prices)
+        are from public sources and shown as indicative; tariffs are hypotheses to validate in Phase 0. Intake Gate
+        performs records quality assurance, gives no tax advice, and files nothing with HMRC.</div>
+    </div>
+  </footer>
+</main>

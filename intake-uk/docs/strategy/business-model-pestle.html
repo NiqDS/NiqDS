@@ -7,7 +7,7 @@
     --line:#dbe3ec; --line-strong:#c4d0dd;
     --accent:#1f6feb; --accent-soft:#e7f0ff; --accent-ink:#12468f;
     --navy:#0d1e2c; --on-navy:#d7e4f0; --on-navy-soft:#8ea6bb;
-    --good:#1e8449; --good-bg:#e7f3ec; --amber:#a9770b; --amber-bg:#f6eed8; --crit:#c0392b;
+    --good:#1e8449; --good-bg:#e7f3ec; --amber:#a9770b; --amber-bg:#f6eed8; --crit:#c0392b; --crit-bg:#f7e4e1;
     --shadow:0 1px 2px rgba(16,33,47,.05), 0 12px 30px rgba(16,33,47,.06);
     --serif:Georgia,"Iowan Old Style","Times New Roman",serif;
     --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -20,7 +20,7 @@
       --line:#22333f; --line-strong:#2c4150;
       --accent:#5a9bff; --accent-soft:#152c46; --accent-ink:#bcd6ff;
       --navy:#081420; --on-navy:#d7e4f0; --on-navy-soft:#7f97ac;
-      --good:#3caf6d; --good-bg:#12281d; --amber:#d0a13c; --amber-bg:#2c2411; --crit:#df6a5b;
+      --good:#3caf6d; --good-bg:#12281d; --amber:#d0a13c; --amber-bg:#2c2411; --crit:#df6a5b; --crit-bg:#2e1512;
       --shadow:0 1px 2px rgba(0,0,0,.3), 0 14px 34px rgba(0,0,0,.4);
     }
   }
@@ -94,6 +94,21 @@
   .pcard .impl b{color:var(--accent);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;display:block;margin-bottom:3px;}
   @media (max-width:900px){.pestle{grid-template-columns:1fr 1fr;}}
   @media (max-width:620px){.pestle{grid-template-columns:1fr;}}
+
+  /* SWOT 2x2 */
+  .swot{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .quad{border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow);background:var(--surface);}
+  .quad .qh{display:flex;align-items:center;gap:11px;margin-bottom:10px;}
+  .quad .qi{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;
+    font-family:var(--serif);font-weight:700;font-size:16px;flex:0 0 auto;}
+  .quad h3{font-size:16px;margin:0;} .quad .qr{font-size:11px;color:var(--faint);font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;}
+  .quad ul{margin:0;padding-left:17px;font-size:13.3px;color:var(--muted);line-height:1.48;}
+  .quad li{margin:5px 0;}
+  .quad.s{background:var(--good-bg);border-color:transparent;} .quad.s .qi{background:var(--good);}
+  .quad.w{background:var(--amber-bg);border-color:transparent;} .quad.w .qi{background:var(--amber);}
+  .quad.o{background:var(--accent-soft);border-color:transparent;} .quad.o .qi{background:var(--accent);}
+  .quad.t{background:var(--crit-bg);border-color:transparent;} .quad.t .qi{background:var(--crit);}
+  @media (max-width:620px){.swot{grid-template-columns:1fr;}}
 
   .note{font-size:12.5px;color:var(--faint);font-style:italic;}
   footer{padding:26px 0 56px;}
@@ -295,6 +310,60 @@
             <li>ESG-отчётность клиентов может стать драйвером позже</li>
           </ul>
           <div class="impl"><b>Что это значит</b>Наименее релевантный фактор сейчас; держать как ESG-пункт для будущих тендеров.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SWOT ===== -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Внутреннее × внешнее · SWOT</span>
+        <h2>Сильные и слабые стороны, возможности и угрозы</h2>
+        <p class="lead">Стратегия-связка: усиливать «сила × возможность» (аудируемость × волна MTD) и закрывать
+          слабые места (доказать точность на реальных данных, привлечь профильного эдвайзера) до масштабирования.</p>
+      </div>
+      <div class="swot">
+        <div class="quad s">
+          <div class="qh"><div class="qi">S</div><div><h3>Сильные стороны</h3><div class="qr">Strengths · внутренние +</div></div></div>
+          <ul>
+            <li>Детерминированный, аудируемый движок правил — продаётся ответственному покупателю, это ров</li>
+            <li>Проверки на уровне комплекта, которых нет у конкурентов (пропущенная выписка, забытый счёт)</li>
+            <li>Рабочий прототип: полный цикл, 81 тест, 0 ложных BLOCK, веб + iOS + JSON API + OAuth-черновики</li>
+            <li>UK-специфичные правила (VAT check digit, логика периодов MTD)</li>
+            <li>Провайдер-независимый LLM-адаптер — низкая привязка к модели</li>
+          </ul>
+        </div>
+        <div class="quad w">
+          <div class="qh"><div class="qi">W</div><div><h3>Слабые стороны</h3><div class="qr">Weaknesses · внутренние −</div></div></div>
+          <ul>
+            <li>Пред-выручка: нет клиентов и трэкшна, тарифы не проверены</li>
+            <li>Малая команда, пока нет профильного бухгалтера-эдвайзера (пробел в доверии)</li>
+            <li>Риск «фича, а не компания» — узкий стартовый охват</li>
+            <li>Точность извлечения на «грязных» сканах не доказана на масштабе</li>
+            <li>Прототип-уровень auth/безопасности; нет мультитенантности и деплоя (работа Фазы 1)</li>
+          </ul>
+        </div>
+        <div class="quad o">
+          <div class="qh"><div class="qi">O</div><div><h3>Возможности</h3><div class="qr">Opportunities · внешние +</div></div></div>
+          <ul>
+            <li>MTD ITSA (2026→2028): ~864k, затем миллионы — в квартальную отчётность</li>
+            <li>Фрагментированный рынок (~40k фирм) с подтверждённой готовностью платить</li>
+            <li>Смежные модули (onboarding/AML, CIS, landlord, VAT-период) повышают ACV</li>
+            <li>SME-wedge → реферальная петля в практики; не-дилютивные гранты</li>
+            <li>Листинги в маркетплейсах Xero/QBO; white-label для крупных</li>
+          </ul>
+        </div>
+        <div class="quad t">
+          <div class="qh"><div class="qi">T</div><div><h3>Угрозы</h3><div class="qr">Threats · внешние −</div></div></div>
+          <ul>
+            <li>Incumbents (Dext/AutoEntry) могут добавить проверку</li>
+            <li>Дедлайны MTD могут снова сдвинуться (риск тайминга)</li>
+            <li>Зависимость от LLM-провайдера (цена/качество/политика)</li>
+            <li>Сползание в «налоговый совет»/суждение AML, если не удержать границу</li>
+            <li>Инциденты GDPR/безопасности данных; длинные консервативные циклы продаж</li>
+          </ul>
         </div>
       </div>
     </div>
