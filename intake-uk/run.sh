@@ -22,7 +22,26 @@ if [ ! -f fixtures/documents/01_clean_invoice.pdf ]; then
 fi
 
 export LLM_BACKEND="${LLM_BACKEND:-mock}"
+# Bind all interfaces by default so a phone on the same Wi-Fi can reach it
+# (needed to test the iOS app on a real device). Use HOST=127.0.0.1 ./run.sh to
+# restrict to this machine. This is a dev server — don't expose it publicly.
+HOST="${HOST:-0.0.0.0}"
+PORT="${PORT:-8000}"
+
+# Best-effort LAN address, so you know what to type into the iOS app.
+LAN_IP=""
+if command -v ipconfig >/dev/null 2>&1; then
+  LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
+fi
+if [ -z "$LAN_IP" ] && command -v hostname >/dev/null 2>&1; then
+  LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+fi
+
 echo ""
-echo "Intake Gate running on http://127.0.0.1:8000   (backend: $LLM_BACKEND)"
+echo "Intake Gate — backend: $LLM_BACKEND  (binding $HOST:$PORT)"
+echo "  On this Mac:        http://127.0.0.1:$PORT"
+if [ -n "$LAN_IP" ]; then
+  echo "  On your iPhone:     http://$LAN_IP:$PORT   ← set this in the app (gear icon)"
+fi
 echo ""
-exec uvicorn app.main:app --host 127.0.0.1 --port 8000
+exec uvicorn app.main:app --host "$HOST" --port "$PORT"

@@ -32,6 +32,29 @@ The camera works because `Info.plist` carries `NSCameraUsageDescription` /
 allows plain `http` to your Mac while testing (remove it for production / use
 https).
 
+## Troubleshooting: blank screen / "cannot connect" (NSURLErrorDomain -1004)
+
+If the app installs and launches but shows a blank page and the console logs
+`didFailProvisionalLoadForFrame … code=-1004`, the app is fine — the web view
+just can't reach the server. (The `Could not create a sandbox extension …` line
+above it is a harmless WKWebView warning, not the cause.) Check, in order:
+
+1. **The server must listen on the whole LAN, not just localhost.** `./run.sh`
+   now binds `0.0.0.0` by default and prints the exact `http://<mac-ip>:8000`
+   line to use. If you start uvicorn yourself, use `--host 0.0.0.0` — a server on
+   `127.0.0.1` is unreachable from the phone even with the right IP.
+2. **Set the app's server to the Mac's LAN IP, not `127.0.0.1`.** On the phone,
+   `127.0.0.1` means the phone itself. Tap the gear and enter the
+   `http://<mac-ip>:8000` that `./run.sh` printed.
+3. **Same Wi-Fi**, and the network isn't "client-isolated" (some guest/office
+   Wi-Fi blocks device-to-device traffic — use a phone hotspot to test).
+4. **Allow incoming connections:** macOS may ask to let "Python" accept incoming
+   network connections — click **Allow** (System Settings → Network → Firewall).
+5. **Quick check from the phone:** open **Safari** and visit
+   `http://<mac-ip>:8000`. If the Intake Gate login loads there, the app will too;
+   if Safari can't reach it either, it's the server binding / firewall / Wi-Fi,
+   not the app.
+
 ## Wider testing (TestFlight)
 
 For testers who aren't next to your Mac, deploy the backend to a public **https**
