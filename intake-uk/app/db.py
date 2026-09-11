@@ -50,10 +50,26 @@ def init_db() -> None:
                 email            TEXT UNIQUE NOT NULL,
                 pw_hash          TEXT NOT NULL,
                 accountant_email TEXT,
+                business_type    TEXT,
+                vat_registered   INTEGER,
+                vat_number       TEXT,
+                mtd_status       TEXT,
                 created_at       TEXT NOT NULL
             )
             """
         )
+        # Migration: add the business-profile columns to databases created before
+        # they existed. These are functional attributes (they drive which checks
+        # apply), not identity verification.
+        user_cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+        for col, decl in (
+            ("business_type", "TEXT"),
+            ("vat_registered", "INTEGER"),
+            ("vat_number", "TEXT"),
+            ("mtd_status", "TEXT"),
+        ):
+            if col not in user_cols:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS scans (
@@ -155,7 +171,9 @@ def get_user_by_email(email: str) -> dict | None:
 def get_user(user_id: int) -> dict | None:
     with _connect() as conn:
         row = conn.execute(
-            "SELECT id, email, accountant_email FROM users WHERE id = ?", (user_id,)
+            "SELECT id, email, accountant_email, business_type, vat_registered, "
+            "vat_number, mtd_status FROM users WHERE id = ?",
+            (user_id,),
         ).fetchone()
     return dict(row) if row else None
 
@@ -165,6 +183,30 @@ def set_accountant_email(user_id: int, email: str | None) -> None:
         conn.execute(
             "UPDATE users SET accountant_email = ? WHERE id = ?",
             ((email or "").strip() or None, user_id),
+        )
+
+
+def set_profile(
+    user_id: int,
+    *,
+    business_type: str | None,
+    vat_registered: bool | None,
+    vat_number: str | None,
+    mtd_status: str | None,
+) -> None:
+    """Persist the business-profile fields (all optional)."""
+
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE users SET business_type = ?, vat_registered = ?, "
+            "vat_number = ?, mtd_status = ? WHERE id = ?",
+            (
+                (business_type or "").strip() or None,
+                None if vat_registered is None else int(bool(vat_registered)),
+                (vat_number or "").strip() or None,
+                (mtd_status or "").strip() or None,
+                user_id,
+            ),
         )
 
 

@@ -278,20 +278,42 @@ def login_submit(request: Request, email: str = Form(...), password: str = Form(
     return RedirectResponse(url="/app", status_code=303)
 
 
+_PROFILE_OPTS = {"business_types": auth.BUSINESS_TYPES, "mtd_statuses": auth.MTD_STATUSES}
+
+
 @app.get("/signup", response_class=HTMLResponse)
 def signup_page(request: Request):
     if request.session.get("uid"):
         return RedirectResponse(url="/app", status_code=303)
-    return templates.TemplateResponse(request, "login.html", {"mode": "signup", "error": None})
+    return templates.TemplateResponse(
+        request, "login.html", {"mode": "signup", "error": None, **_PROFILE_OPTS}
+    )
 
 
 @app.post("/signup")
-def signup_submit(request: Request, email: str = Form(...), password: str = Form(...)):
-    uid, error = auth.register(email, password)
+def signup_submit(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    business_type: str = Form(""),
+    vat_registered: str = Form(""),
+    vat_number: str = Form(""),
+    mtd_status: str = Form(""),
+):
+    uid, error = auth.register(
+        email, password,
+        business_type=business_type or None,
+        vat_registered=bool(vat_registered),
+        vat_number=vat_number or None,
+        mtd_status=mtd_status or None,
+    )
     if error:
         return templates.TemplateResponse(
             request, "login.html",
-            {"mode": "signup", "error": error, "email": email}, status_code=400,
+            {"mode": "signup", "error": error, "email": email,
+             "business_type": business_type, "vat_registered": bool(vat_registered),
+             "vat_number": vat_number, "mtd_status": mtd_status, **_PROFILE_OPTS},
+            status_code=400,
         )
     request.session["uid"] = uid
     return RedirectResponse(url="/app", status_code=303)

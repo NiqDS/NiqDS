@@ -68,6 +68,8 @@
     .split { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
     pre.chase { white-space: pre-wrap; font-family: ui-monospace, Menlo, monospace; font-size: 13px;
                 background: var(--bg); padding: 14px; border-radius: 8px; border: 1px solid var(--line); }
+    footer.legal { max-width: 1080px; margin: 8px auto 32px; padding: 0 20px;
+      color: var(--muted); font-size: 12px; line-height: 1.5; }
     @media (max-width: 780px) { .split, .grid2 { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -77,5 +79,11 @@
     <span class="muted" style="float:right; color:#8fa6b8;">model extracts · code validates</span>
   </header>
   <main>{% block content %}{% endblock %}</main>
+  <footer class="legal">
+    Records quality-assurance only. Intake Gate does <strong>not</strong> provide tax,
+    accounting or legal advice, does not submit anything to HMRC, and makes no
+    anti-money-laundering judgement — it surfaces gaps for a professional to review.
+    The practice remains responsible for its filings and professional judgement.
+  </footer>
 </body>
 </html>

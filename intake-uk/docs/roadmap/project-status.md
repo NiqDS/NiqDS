@@ -93,6 +93,11 @@ Agent (code/docs I can do), **[N+A]** = together._
   app verification before non-test users) and Microsoft Entra consent.
 - **[N] AML positioning advice** — keep the onboarding module "completeness
   check, not AML judgement"; stay out of regulated advice / "tax advice".
+  Tracked question written up for the solicitor in `docs/legal/README.md`
+  ("AML / Proceeds of Crime — confirm our status"): confirm we're a processor and
+  **not** a "relevant person" under MLR 2017 in the software-only model, and whether
+  the concierge model changes that. In-product + Terms/DPA now carry a "no AML
+  judgement, no HMRC submission" disclaimer.
 - **[N] Insurance** — professional indemnity + cyber (once you have customers).
 - **[N] IP** — confirm code ownership; consider trademarking "Intake Gate".
 

@@ -27,6 +27,34 @@
       <input id="password" name="password" type="password" required
              autocomplete="{{ 'new-password' if mode == 'signup' else 'current-password' }}"
              placeholder="{{ 'At least 8 characters' if mode == 'signup' else '••••••••' }}">
+
+      {% if mode == "signup" %}
+      <label for="business_type">Business type <span class="muted">(optional)</span></label>
+      <select id="business_type" name="business_type">
+        <option value="">Prefer not to say</option>
+        {% for value, label in business_types.items() %}
+        <option value="{{ value }}" {{ 'selected' if business_type == value else '' }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+
+      <label class="check">
+        <input type="checkbox" name="vat_registered" {{ 'checked' if vat_registered else '' }}>
+        This business is VAT-registered
+      </label>
+
+      <label for="vat_number">VAT number <span class="muted">(optional)</span></label>
+      <input id="vat_number" name="vat_number" type="text" inputmode="text"
+             autocomplete="off" value="{{ vat_number or '' }}" placeholder="GB123456789">
+
+      <label for="mtd_status">Making Tax Digital <span class="muted">(optional)</span></label>
+      <select id="mtd_status" name="mtd_status">
+        <option value="">Prefer not to say</option>
+        {% for value, label in mtd_statuses.items() %}
+        <option value="{{ value }}" {{ 'selected' if mtd_status == value else '' }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+
       <div style="height:16px;"></div>
       <button class="btn" type="submit">{{ "Create account" if mode == "signup" else "Log in" }}</button>
     </form>

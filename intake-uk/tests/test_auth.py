@@ -40,3 +40,41 @@ def test_register_rejects_duplicate(temp_db):
     auth.register("dup@example.com", "supersecret1")
     uid, err = auth.register("dup@example.com", "supersecret1")
     assert uid is None and "already exists" in err
+
+
+# --- business profile ------------------------------------------------------- #
+
+def test_register_persists_profile(temp_db):
+    uid, err = auth.register(
+        "sole@trader.co.uk", "supersecret1",
+        business_type="sole_trader", vat_registered=True,
+        vat_number="GB 999 9999 73", mtd_status="vat",
+    )
+    assert err is None and uid
+    user = db.get_user(uid)
+    assert user["business_type"] == "sole_trader"
+    assert user["vat_registered"] == 1
+    assert user["vat_number"] == "GB 999 9999 73"
+    assert user["mtd_status"] == "vat"
+
+
+def test_register_validates_vat_number(temp_db):
+    # GB123456789 fails the UK check digit — reuse of the engine's own rule.
+    uid, err = auth.register(
+        "bad@vat.co.uk", "supersecret1",
+        vat_registered=True, vat_number="GB123456789",
+    )
+    assert uid is None and "VAT number" in err
+
+
+def test_register_rejects_unknown_business_type(temp_db):
+    uid, err = auth.register("x@y.co.uk", "supersecret1", business_type="megacorp")
+    assert uid is None and "business type" in err.lower()
+
+
+def test_register_without_profile_is_fine(temp_db):
+    uid, err = auth.register("plain@user.co.uk", "supersecret1")
+    assert err is None and uid
+    user = db.get_user(uid)
+    assert user["business_type"] is None
+    assert user["vat_registered"] is None

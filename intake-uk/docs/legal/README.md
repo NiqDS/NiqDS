@@ -36,6 +36,36 @@ before they send you anything. The privacy policy and retention policy support i
 - [ ] Keep the product's **"records QA, not tax advice; no HMRC submission"** line in
       the ToS and marketing — it's both true and what keeps you out of regulated
       advice.
+- [ ] **AML status — get this confirmed** (see below).
+
+## AML / Proceeds of Crime — confirm our status  ⚠️ open question for the solicitor
+
+The question: *do we have any duty to detect or report suspicious activity?*
+
+Our working position (to be confirmed, **not** yet legal advice):
+
+- The duty to file **Suspicious Activity Reports (SARs)** under the **Money
+  Laundering Regulations 2017** and **Proceeds of Crime Act 2002** falls on
+  **"relevant persons" in the regulated sector** — i.e. the **bookkeeping practice**,
+  not a software vendor. SARs go to the **NCA**, not HMRC.
+- In the **software-only model** we are a **data processor**, not a relevant person,
+  so we believe we have **no proactive duty to monitor for or report** client
+  wrongdoing. (POCA's principal offences still bind everyone — we must never
+  actively conceal or assist — but that is not a monitoring duty.)
+- Design consequence we've already adopted: the product **surfaces anomalies to the
+  regulated professional as WARN/INFO and never accuses, auto-reports, or files
+  anything**. Auto-reporting would risk the **"tipping-off"** offence, defamation,
+  and UK-GDPR exposure. The regulated human makes the SAR judgement.
+
+**Confirm with the solicitor / an AML specialist:**
+1. That Intake Gate is a **processor and NOT a relevant person** under MLR 2017 in
+   the software-only model.
+2. Whether the **Phase 0 concierge model** (we run bundles as a hands-on service)
+   changes that — if we become a relevant person we'd need registration with a
+   supervisor (HMRC or a professional body), a written risk assessment, a nominated
+   **MLRO**, and a SAR process.
+3. The exact wording of the **"no AML judgement"** disclaimer now shown in-product
+   and in the Terms/DPA.
 
 ## Keep them honest
 The code already backs these up: configurable retention (`INTAKE_RETENTION_DAYS`),
