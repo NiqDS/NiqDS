@@ -66,6 +66,11 @@ Agent (code/docs I can do), **[N+A]** = together._
   VM / Render recipes).
 - ✅ **CI done** — `.github/workflows/ci.yml` runs `pytest` on push.
 - ✅ **Security hardening** — headers, Secure cookies behind HTTPS, upload cap.
+- ✅ **Access control on the bundle tool** — the practice routes (`/`, `/upload`,
+  `/demo`, `/bundle/{id}`, `/report`, `/chase`) now require login and every bundle
+  is owner-scoped (`get_bundle(id, user_id)`); bundle/scan ids widened to full
+  uuid4 hex. Closes the broken-access-control / IDOR finding from the security
+  review. Covered by `tests/test_access_control.py`.
 - **[N+A] Actually deploy** to a host + HTTPS (pick one from the guide). Unblocks
   off-LAN phone, TestFlight, and OAuth.
 - **[N] Domain + DNS**; **[A] deploy the marketing site** (`website/`) + fill its

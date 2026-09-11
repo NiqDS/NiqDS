@@ -29,6 +29,7 @@ def init_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS bundles (
                 bundle_id             TEXT PRIMARY KEY,
+                user_id               INTEGER,
                 client_name           TEXT NOT NULL,
                 declared_period_start TEXT NOT NULL,
                 declared_period_end   TEXT NOT NULL,
@@ -37,6 +38,11 @@ def init_db() -> None:
             )
             """
         )
+        # Migration: older databases created the bundles table without an owner
+        # column. Add it so every bundle can be scoped to the user who created it.
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(bundles)").fetchall()}
+        if "user_id" not in cols:
+            conn.execute("ALTER TABLE bundles ADD COLUMN user_id INTEGER")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -76,17 +82,18 @@ def init_db() -> None:
         )
 
 
-def save_bundle(bundle: Bundle) -> None:
+def save_bundle(bundle: Bundle, user_id: int) -> None:
     with _connect() as conn:
         conn.execute(
             """
             INSERT OR REPLACE INTO bundles
-                (bundle_id, client_name, declared_period_start,
+                (bundle_id, user_id, client_name, declared_period_start,
                  declared_period_end, created_at, data_json)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 bundle.bundle_id,
+                user_id,
                 bundle.client_name,
                 bundle.declared_period_start.isoformat(),
                 bundle.declared_period_end.isoformat(),
@@ -96,21 +103,31 @@ def save_bundle(bundle: Bundle) -> None:
         )
 
 
-def get_bundle(bundle_id: str) -> Bundle | None:
+def get_bundle(bundle_id: str, user_id: int) -> Bundle | None:
+    """Fetch a bundle only if it belongs to ``user_id``.
+
+    Scoping the lookup to the owner is what prevents one user reading another's
+    client documents by guessing or enumerating a bundle id (IDOR). A bundle
+    owned by someone else — or an orphaned pre-migration bundle with a NULL
+    owner — reads as "not found".
+    """
+
     with _connect() as conn:
         row = conn.execute(
-            "SELECT data_json FROM bundles WHERE bundle_id = ?", (bundle_id,)
+            "SELECT data_json FROM bundles WHERE bundle_id = ? AND user_id = ?",
+            (bundle_id, user_id),
         ).fetchone()
     if row is None:
         return None
     return Bundle.model_validate_json(row["data_json"])
 
 
-def list_bundles() -> list[dict]:
+def list_bundles(user_id: int) -> list[dict]:
     with _connect() as conn:
         rows = conn.execute(
             "SELECT bundle_id, client_name, created_at FROM bundles "
-            "ORDER BY created_at DESC"
+            "WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,),
         ).fetchall()
     return [dict(r) for r in rows]
 

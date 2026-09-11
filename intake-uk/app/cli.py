@@ -150,8 +150,20 @@ def _emit(bundle: Bundle, args) -> int:
         from app import db
 
         db.init_db()
-        db.save_bundle(bundle)
-        print(_paint(f"Saved to app DB as {bundle.bundle_id} (view it in the web UI).", "dim", args.colour))
+        owner = db.get_user_by_email((args.owner_email or "").strip()) if args.owner_email else None
+        if owner is None:
+            print(_paint(
+                "Not saved: --save-db needs --owner-email set to an existing account "
+                "(bundles are now scoped to the account that owns them). "
+                "Create the account in the web app first.",
+                "warn", args.colour,
+            ))
+        else:
+            db.save_bundle(bundle, owner["id"])
+            print(_paint(
+                f"Saved to app DB as {bundle.bundle_id}, owned by {owner['email']} "
+                "(view it in the web UI).", "dim", args.colour,
+            ))
 
     # Non-zero exit if anything blocks — handy in scripts.
     return 1 if report.counts["block"] else 0
@@ -165,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="disable coloured output")
     common.add_argument("--out", help="write gap-report.md + chase files under this folder")
     common.add_argument("--save-db", action="store_true", help="also save the bundle to the app DB")
+    common.add_argument("--owner-email", help="email of the account that will own the saved bundle (required with --save-db)")
     common.add_argument("--today", help="override 'today' (YYYY-MM-DD) for deterministic runs")
 
     parser = argparse.ArgumentParser(prog="intake-gate", description="Concierge intake runner.", parents=[common])

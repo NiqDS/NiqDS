@@ -114,6 +114,13 @@ def _compute(bundle: Bundle):
     return flags, report, chase
 
 
+def _current_user(request: Request) -> dict | None:
+    uid = request.session.get("uid")
+    if uid is None:
+        return None
+    return db.get_user(int(uid))
+
+
 # --------------------------------------------------------------------------- #
 # Upload
 # --------------------------------------------------------------------------- #
@@ -121,10 +128,13 @@ def _compute(bundle: Bundle):
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
     return templates.TemplateResponse(
         request,
         "upload.html",
-        {"bundles": db.list_bundles(), "scenarios": scenario_names()},
+        {"bundles": db.list_bundles(user["id"]), "scenarios": scenario_names()},
     )
 
 
@@ -137,7 +147,10 @@ async def upload(
     expected_accounts: str = Form(""),
     files: list[UploadFile] = File(default=[]),
 ):
-    bundle_id = "B-" + uuid.uuid4().hex[:8]
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    bundle_id = "B-" + uuid.uuid4().hex
     dest = UPLOAD_DIR / bundle_id
     dest.mkdir(parents=True, exist_ok=True)
 
@@ -159,18 +172,21 @@ async def upload(
         expected_accounts=accounts,
         documents=documents,
     )
-    db.save_bundle(bundle)
+    db.save_bundle(bundle, user["id"])
     return RedirectResponse(url=f"/bundle/{bundle_id}", status_code=303)
 
 
 @app.post("/demo")
-def load_demo(scenario: str = Form(...)):
+def load_demo(request: Request, scenario: str = Form(...)):
     """Seed a demo bundle from the shipped fixtures (no upload needed)."""
 
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
     src = build_scenario_bundle(scenario)
-    bundle_id = "B-" + uuid.uuid4().hex[:8]
+    bundle_id = "B-" + uuid.uuid4().hex
     bundle = src.model_copy(update={"bundle_id": bundle_id})
-    db.save_bundle(bundle)
+    db.save_bundle(bundle, user["id"])
     return RedirectResponse(url=f"/bundle/{bundle_id}", status_code=303)
 
 
@@ -181,7 +197,10 @@ def load_demo(scenario: str = Form(...)):
 
 @app.get("/bundle/{bundle_id}", response_class=HTMLResponse)
 def bundle_view(request: Request, bundle_id: str):
-    bundle = db.get_bundle(bundle_id)
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    bundle = db.get_bundle(bundle_id, user["id"])
     if bundle is None:
         raise HTTPException(status_code=404, detail="That bundle doesn't exist.")
     _flags, report, _chase = _compute(bundle)
@@ -200,7 +219,10 @@ def bundle_view(request: Request, bundle_id: str):
 
 @app.get("/bundle/{bundle_id}/report", response_class=HTMLResponse)
 def report_view(request: Request, bundle_id: str):
-    bundle = db.get_bundle(bundle_id)
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    bundle = db.get_bundle(bundle_id, user["id"])
     if bundle is None:
         raise HTTPException(status_code=404, detail="That bundle doesn't exist.")
     _flags, report, chase = _compute(bundle)
@@ -217,8 +239,11 @@ def report_view(request: Request, bundle_id: str):
 
 
 @app.get("/bundle/{bundle_id}/chase", response_class=PlainTextResponse)
-def chase_text(bundle_id: str):
-    bundle = db.get_bundle(bundle_id)
+def chase_text(request: Request, bundle_id: str):
+    user = _current_user(request)
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    bundle = db.get_bundle(bundle_id, user["id"])
     if bundle is None:
         raise HTTPException(status_code=404, detail="That bundle doesn't exist.")
     _flags, _report, chase = _compute(bundle)
@@ -231,13 +256,6 @@ def chase_text(bundle_id: str):
 
 VERDICT_CLASS = {"ready": "ok", "fix": "block", "unreadable": "warn", "unknown": "warn"}
 STATUS_ICON = {"ok": "✓", "invalid": "✕", "missing": "✕", "warn": "!", "optional": "–"}
-
-
-def _current_user(request: Request) -> dict | None:
-    uid = request.session.get("uid")
-    if uid is None:
-        return None
-    return db.get_user(int(uid))
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -303,7 +321,7 @@ async def scan_submit(request: Request, file: UploadFile = File(...)):
     if not file or not file.filename:
         return RedirectResponse(url="/app", status_code=303)
 
-    scan_id = "S-" + uuid.uuid4().hex[:8]
+    scan_id = "S-" + uuid.uuid4().hex
     dest = SCAN_DIR / str(user["id"]) / scan_id
     dest.mkdir(parents=True, exist_ok=True)
     target = dest / Path(file.filename).name
