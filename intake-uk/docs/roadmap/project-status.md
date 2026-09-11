@@ -1,0 +1,125 @@
+# Intake Gate — project status & what's left
+
+_Snapshot of what's built and everything remaining, across code, infra, legal and
+business. Owner tags: **[N]** = Nick (relationships, legal, decisions), **[A]** =
+Agent (code/docs I can do), **[N+A]** = together._
+
+---
+
+## ✅ Done (built & tested)
+
+- **Deterministic rules engine** — format, arithmetic, temporal, bundle-level
+  (VAT check digit, gaps, duplicates, coverage…), single source of truth in
+  `registry.yaml`. Eval harness, 12 fixtures + labels, ~81 automated tests,
+  **zero false BLOCKs**.
+- **LLM adapter** — `mock` (offline default), `anthropic`, `openai` backends
+  (real ones code-complete, key-gated).
+- **Practice web app** — upload bundle → gap report → chase message.
+- **SME scan app** — login (scrypt + session), capture, single-document check,
+  result, history.
+- **Send to accountant** — multi-select bundle → draft (`mailto` + `.eml` with
+  attachments) + Gmail/Microsoft OAuth draft flow (code done, env-gated).
+- **JSON API** — `/api/login|scan|scans|scan/{id}|health` (bearer token).
+- **iOS app** — SwiftUI `WKWebView` shell, Xcode project + build guide.
+- **Concierge CLI**, `run.sh`, README.
+- **Strategy pack** — subscription strategy, investor pitch (+PPTX), Business
+  Model Canvas / PESTLE / SWOT (RU+EN +PDF), Phase 0 kit, adjacent-modules
+  backlog, OAuth setup guide, SME showcase.
+
+---
+
+## 🔧 Code / product — remaining
+
+### P0 — blocks the product actually working for a real user
+- **[A] Real extraction from photos (vision/OCR).** Today the pipeline reads
+  *text-layer PDFs*; a phone photo has no text, so it's flagged "too blurry".
+  Wire the image to a vision model (Claude/GPT vision) or an OCR step so
+  "snap a photo → extract" works outside the fixtures. **This is the biggest
+  functional gap.**
+- **[A] Data retention controls.** Uploaded files currently persist under
+  `data/`. Add configurable auto-delete after processing (needed before real
+  client data).
+
+### P1 — needed to be a real multi-user product (Phase 1)
+- **[A] Multi-tenancy + Postgres.** Move off single-file SQLite; add `tenant_id`
+  isolation; per-tenant client profiles (promote the `client_profiles.json` stub).
+- **[A] Hardened auth.** Email verification, password reset, rate limiting,
+  session + API-token revocation. (Current auth is prototype-grade.)
+- **[A] Billing.** Stripe subscriptions, metered "active clients/month", plan
+  gating + overage.
+- **[N+A] Real LLM backend validated** on real documents — measure extraction
+  accuracy + false positives, harden rules from the feedback loop.
+
+### P2 — expansion / polish
+- **[A] Accounting integrations** — Xero/QBO/FreeAgent import + write-back (stubbed).
+- **[A] Adjacent modules** — VAT-period, landlord per-property, supplier
+  bank-change, onboarding/AML completeness, CIS (designed, gated on discovery).
+- **[A] iOS** — native client via the JSON API (optional), app icon + launch
+  screen, a "can't reach server" screen, TestFlight build.
+- **[A] Observability** — structured logging, error monitoring (e.g. Sentry).
+- **[N+A] Security review** before handling real financial data.
+
+---
+
+## ☁️ Infrastructure / deployment — remaining  (unblocks a lot)
+- **[N+A] Deploy the backend to a cloud host with HTTPS** (Lightsail / Render /
+  Fly / Railway). Unblocks: off-LAN phone testing, TestFlight, **and the Gmail/
+  Microsoft OAuth** (needs a public HTTPS callback).
+- **[N] Domain + DNS**; **[A] deploy the marketing site** (`website/`) and fill
+  its placeholders (real reviews, team photo, address).
+- **[A] Managed Postgres + object storage** for uploads; secrets management.
+- **[A] CI** — GitHub Actions running `pytest` on push.
+- **[N+A] Backups.**
+
+---
+
+## ⚖️ Legal / compliance — remaining  (before real client data)
+- **[N] Company formation** (Ltd) — Companies House.
+- **[N] ICO registration** (data-protection fee) — required for processing UK
+  personal data.
+- **[N+A] UK GDPR pack** — finalise the privacy policy (solicitor review), a
+  **Data Processing Agreement** for practice clients (you're a *processor*),
+  records of processing, lawful bases, **retention policy**.
+- **[N] Terms of Service / customer contract.**
+- **[N] Security posture** — encryption at rest for tokens & documents, access
+  controls, breach-response process.
+- **[N] OAuth app verification** — Google (gmail.compose is a *sensitive* scope →
+  app verification before non-test users) and Microsoft Entra consent.
+- **[N] AML positioning advice** — keep the onboarding module "completeness
+  check, not AML judgement"; stay out of regulated advice / "tax advice".
+- **[N] Insurance** — professional indemnity + cyber (once you have customers).
+- **[N] IP** — confirm code ownership; consider trademarking "Intake Gate".
+
+---
+
+## 🧾 Administrative / business — remaining
+- **[N] Business bank account + bookkeeping** (dogfood it).
+- **[N] Stripe account.**
+- **[N] Developer/partner programs** — Xero, QuickBooks, FreeAgent (for
+  integrations + marketplace listings).
+- **[N] Grants** — Innovate UK eligibility/deadlines; R&D tax-relief record-keeping.
+- **[N] Pricing** — validate the tiers in Phase 0.
+
+---
+
+## 🚀 Go-to-market / Phase 0 — remaining  (kit is ready in `docs/phase0/`)
+Execute the plan in `docs/phase0/phase0-plan.md`:
+- **[N] N1 Legal groundwork**, **N2 recruit 5 design partners**, **N3 discovery
+  calls**, **N4 secure transfer**, **N5 run concierge bundles**, **N6 capture
+  outcomes/quotes**, **N7 validate pricing + approve modules**, **N8 fill site &
+  go public**.
+- **[A]** on demand from N5/N3: fix rules from real false positives; prototype the
+  validated adjacent modules.
+
+---
+
+## Suggested critical path (next 30–60 days)
+1. **[N]** Company + ICO + a solicitor-reviewed privacy policy & DPA. _(Blocks real client data.)_
+2. **[N+A]** Deploy backend to HTTPS + domain. _(Unblocks phone testing off-LAN, TestFlight, OAuth.)_
+3. **[A]** Wire **vision extraction** so real photos work. _(Makes the core loop real.)_
+4. **[N]** Recruit 2–3 **design partners**; start concierge runs (Phase 0).
+5. **[A]** CI + a light security pass; retention controls.
+6. Then, once validated: **[A]** multi-tenancy + Stripe + one adjacent module.
+
+> Rule of thumb: anything touching **real client financial data** needs steps 1
+> (legal) done first. Everything before that can run on fixtures/demo data.
