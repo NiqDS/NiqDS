@@ -36,9 +36,8 @@ Agent (code/docs I can do), **[N+A]** = together._
   Wire the image to a vision model (Claude/GPT vision) or an OCR step so
   "snap a photo → extract" works outside the fixtures. **This is the biggest
   functional gap.**
-- **[A] Data retention controls.** Uploaded files currently persist under
-  `data/`. Add configurable auto-delete after processing (needed before real
-  client data).
+- ~~**[A] Data retention controls.**~~ ✅ **Done** — configurable auto-delete via
+  `INTAKE_RETENTION_DAYS` (`app/retention.py`, runs on startup).
 
 ### P1 — needed to be a real multi-user product (Phase 1)
 - **[A] Multi-tenancy + Postgres.** Move off single-file SQLite; add `tenant_id`
@@ -61,26 +60,28 @@ Agent (code/docs I can do), **[N+A]** = together._
 
 ---
 
-## ☁️ Infrastructure / deployment — remaining  (unblocks a lot)
-- **[N+A] Deploy the backend to a cloud host with HTTPS** (Lightsail / Render /
-  Fly / Railway). Unblocks: off-LAN phone testing, TestFlight, **and the Gmail/
-  Microsoft OAuth** (needs a public HTTPS callback).
-- **[N] Domain + DNS**; **[A] deploy the marketing site** (`website/`) and fill
-  its placeholders (real reviews, team photo, address).
-- **[A] Managed Postgres + object storage** for uploads; secrets management.
-- **[A] CI** — GitHub Actions running `pytest` on push.
-- **[N+A] Backups.**
+## ☁️ Infrastructure / deployment
+- ✅ **Deployment scaffolding done** — `Dockerfile`, compose, `fly.toml`,
+  `Procfile`, Caddyfile, env config, and `docs/setup/deploy.md` (Fly / Lightsail-
+  VM / Render recipes).
+- ✅ **CI done** — `.github/workflows/ci.yml` runs `pytest` on push.
+- ✅ **Security hardening** — headers, Secure cookies behind HTTPS, upload cap.
+- **[N+A] Actually deploy** to a host + HTTPS (pick one from the guide). Unblocks
+  off-LAN phone, TestFlight, and OAuth.
+- **[N] Domain + DNS**; **[A] deploy the marketing site** (`website/`) + fill its
+  placeholders.
+- **[A] Managed Postgres + object storage** (Phase 1, for scale); **[N+A] Backups.**
 
 ---
 
 ## ⚖️ Legal / compliance — remaining  (before real client data)
+- ✅ **UK GDPR draft pack done** — privacy policy, DPA (you as processor), Terms
+  of Service, retention policy in `docs/legal/` (**drafts — need solicitor review**).
 - **[N] Company formation** (Ltd) — Companies House.
 - **[N] ICO registration** (data-protection fee) — required for processing UK
   personal data.
-- **[N+A] UK GDPR pack** — finalise the privacy policy (solicitor review), a
-  **Data Processing Agreement** for practice clients (you're a *processor*),
-  records of processing, lawful bases, **retention policy**.
-- **[N] Terms of Service / customer contract.**
+- **[N] Get the drafts reviewed by a solicitor** and complete every `[bracketed]`
+  item + the sub-processor list.
 - **[N] Security posture** — encryption at rest for tokens & documents, access
   controls, breach-response process.
 - **[N] OAuth app verification** — Google (gmail.compose is a *sensitive* scope →
