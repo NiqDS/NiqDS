@@ -26,7 +26,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import auth, db, mail, oauth
+from app import auth, config, db, mail, oauth, retention
 from app.api import router as api_router
 from app.ingest.extract import extract_document
 from app.ingest.loader import load_file
@@ -39,20 +39,51 @@ from app.scenarios import scenario_names
 from app.single import check_single
 
 BASE_DIR = Path(__file__).resolve().parent
-UPLOAD_DIR = BASE_DIR.parent / "data" / "uploads"
-SCAN_DIR = BASE_DIR.parent / "data" / "scans"
+UPLOAD_DIR = config.UPLOAD_DIR
+SCAN_DIR = config.SCAN_DIR
+_MAX_UPLOAD_BYTES = config.MAX_UPLOAD_MB * 1024 * 1024
+
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
+    config.ensure_dirs()
     db.init_db()
+    removed = retention.sweep()
+    if removed:
+        print(f"retention: removed {removed} file(s) older than {config.RETENTION_DAYS} days")
     yield
 
 
 app = FastAPI(title="Intake Gate (UK)", lifespan=_lifespan)
-app.add_middleware(SessionMiddleware, secret_key=auth.session_secret(), same_site="lax")
+app.add_middleware(
+    SessionMiddleware, secret_key=auth.session_secret(),
+    same_site="lax", https_only=config.SESSION_SECURE,
+)
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 app.include_router(api_router)
+
+
+@app.middleware("http")
+async def _security_and_limits(request: Request, call_next):
+    # Reject oversized uploads early (declared Content-Length).
+    if request.method == "POST" and request.url.path in {"/upload", "/scan", "/api/scan"}:
+        cl = request.headers.get("content-length")
+        if cl and cl.isdigit() and int(cl) > _MAX_UPLOAD_BYTES:
+            detail = f"File too large (max {config.MAX_UPLOAD_MB} MB)."
+            if request.url.path.startswith("/api"):
+                return JSONResponse({"detail": detail}, status_code=413)
+            return PlainTextResponse(detail, status_code=413)
+    response = await call_next(request)
+    # Baseline security headers.
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if config.HSTS:
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+    return response
 
 
 # Error rendering: JSON under /api, a branded HTML 404 elsewhere.

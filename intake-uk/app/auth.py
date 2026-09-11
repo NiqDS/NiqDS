@@ -15,12 +15,11 @@ import hashlib
 import hmac
 import os
 import secrets
-from pathlib import Path
 
-from app import db
+from app import config, db
 
 _N, _R, _P = 2**14, 8, 1  # scrypt cost parameters
-_SECRET_PATH = Path(__file__).resolve().parents[1] / "data" / "secret.key"
+_SECRET_PATH = config.SECRET_PATH
 MIN_PASSWORD_LEN = 8
 
 

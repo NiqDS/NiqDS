@@ -24,14 +24,14 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pydantic import BaseModel
 
-from app import auth, db
+from app import auth, config, db
 from app.ingest.extract import extract_document
 from app.ingest.loader import load_file
 from app.models import ExtractedDocument
 from app.single import SingleResult, check_single
 
 router = APIRouter(prefix="/api", tags=["api"])
-SCAN_DIR = Path(__file__).resolve().parents[1] / "data" / "scans"
+SCAN_DIR = config.SCAN_DIR
 TOKEN_MAX_AGE = 30 * 24 * 3600  # 30 days
 
 _serializer: URLSafeTimedSerializer | None = None

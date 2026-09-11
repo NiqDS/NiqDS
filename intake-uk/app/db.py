@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import datetime
-from pathlib import Path
 
+from app import config
 from app.models import Bundle
 
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "gate.db"
+DB_PATH = config.DB_PATH
 
 
 def _connect() -> sqlite3.Connection:

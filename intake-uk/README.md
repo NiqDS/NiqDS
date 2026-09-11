@@ -156,6 +156,27 @@ The extraction adapter (`app/llm/adapter.py`) picks the backend from
 
 ---
 
+## Deploy to production (public HTTPS)
+
+The backend is containerised (`Dockerfile`) and stores its data under
+`INTAKE_DATA_DIR` (mount a volume there). A public HTTPS URL unblocks off-LAN
+phone testing, TestFlight, and the Gmail/Microsoft OAuth drafts.
+
+```bash
+docker compose up --build         # local production-like run on :8000
+```
+
+Deployment recipes (Fly.io / Lightsail VM + Caddy / Render) and the full env-var
+list are in [`docs/setup/deploy.md`](docs/setup/deploy.md). Key production vars:
+`INTAKE_SECRET` (stable random), `INTAKE_DATA_DIR` (volume), `OAUTH_REDIRECT_BASE`
+(https), `INTAKE_SESSION_SECURE=1`, `INTAKE_HSTS=1`, `INTAKE_RETENTION_DAYS`.
+
+The app sets baseline security headers, marks cookies `Secure` behind HTTPS,
+caps upload size (`INTAKE_MAX_UPLOAD_MB`), and auto-deletes stored client files
+after `INTAKE_RETENTION_DAYS` (0 = keep). CI runs the test suite on every push
+(`.github/workflows/ci.yml`). SQLite suits a single small instance; Postgres is
+the Phase 1 upgrade for multi-tenant scale.
+
 ## How it works
 
 ```

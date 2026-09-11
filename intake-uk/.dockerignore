@@ -1,0 +1,16 @@
+.git
+.venv
+**/__pycache__
+**/*.pyc
+data/
+ios/
+website/
+docs/
+eval/
+tests/
+fixtures/documents/
+fixtures/generate.py
+*.pdf
+*.pptx
+.env
+.pytest_cache

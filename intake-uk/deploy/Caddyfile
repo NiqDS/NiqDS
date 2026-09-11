@@ -1,0 +1,6 @@
+# Automatic HTTPS reverse proxy for the VM / Lightsail-instance route.
+# Put your real domain here; Caddy fetches a Let's Encrypt cert automatically.
+your-domain.example.com {
+    reverse_proxy app:8000
+    encode gzip
+}
