@@ -154,6 +154,17 @@ pip install -r requirements-optional.txt
 The extraction adapter (`app/llm/adapter.py`) picks the backend from
 `LLM_BACKEND`; the real SDKs are imported lazily.
 
+### Reading photos (vision)
+
+A phone photo or a scanned PDF has no text layer. On the default `mock` backend
+the system cannot read it, so it is flagged **FMT-LEGIB-001** ("too blurry")
+rather than guessed at. Switch to a **vision-capable** backend (`anthropic` or
+`openai`) and the same photo is read from the image: the loader rasterises the
+page(s) and hands the image to the model, which transcribes it to the same typed
+JSON. The model also reports how clearly it could read the document — a genuinely
+unclear photo comes back low-confidence and is still flagged, never guessed. No
+pass/fail decision moves to the model; the deterministic engine still decides.
+
 ---
 
 ## Deploy to production (public HTTPS)

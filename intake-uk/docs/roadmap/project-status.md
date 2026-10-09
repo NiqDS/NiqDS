@@ -31,11 +31,13 @@ Agent (code/docs I can do), **[N+A]** = together._
 ## 🔧 Code / product — remaining
 
 ### P0 — blocks the product actually working for a real user
-- **[A] Real extraction from photos (vision/OCR).** Today the pipeline reads
-  *text-layer PDFs*; a phone photo has no text, so it's flagged "too blurry".
-  Wire the image to a vision model (Claude/GPT vision) or an OCR step so
-  "snap a photo → extract" works outside the fixtures. **This is the biggest
-  functional gap.**
+- ~~**[A] Real extraction from photos (vision/OCR).**~~ ✅ **Done** — a photo or
+  text-less scan is rasterised and read by a vision backend (`anthropic`/`openai`):
+  `app/ingest/loader.py` attaches page images, `app/llm/adapter.py` sends them with
+  a vision prompt, and the model self-reports legibility so a blurry photo is still
+  flagged (FMT-LEGIB-001), never guessed. On the default `mock` backend photos are
+  flagged as before. Needs an API key to use (`LLM_BACKEND=anthropic`). Covered by
+  `tests/test_vision.py`.
 - ~~**[A] Data retention controls.**~~ ✅ **Done** — configurable auto-delete via
   `INTAKE_RETENTION_DAYS` (`app/retention.py`, runs on startup).
 

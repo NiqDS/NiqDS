@@ -31,8 +31,12 @@ def _fixture_index() -> dict[str, dict]:
 
 class MockBackend:
     name = "mock"
+    supports_vision = False
 
-    def extract_json(self, source_file: str, text: str) -> dict:
+    def extract_json(
+        self, source_file: str, text: str,
+        images: list[bytes] | None = None, media_type: str | None = None,
+    ) -> dict:
         basename = Path(source_file).name
         fixture = _fixture_index().get(basename)
         if fixture is not None:
