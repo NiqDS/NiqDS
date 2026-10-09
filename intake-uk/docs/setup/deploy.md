@@ -50,16 +50,58 @@ address, deploy below.
 
 ## Option 1 — Fly.io (simplest stateful; volume-native)
 
+Fly builds the image on its own builders, so you do **not** need Docker locally.
+Run these from the `intake-uk/` directory. Copy the block, change `APP` on the
+first line to something globally unique, and paste.
+
 ```bash
-brew install flyctl
-fly auth login
-fly launch --no-deploy            # reads fly.toml; pick a unique app name
-fly volumes create intake_data --size 1 --region lhr
-fly secrets set INTAKE_SECRET=$(openssl rand -hex 32) \
-                OAUTH_REDIRECT_BASE=https://<your-app>.fly.dev
-fly deploy
+# 0. One-time: install + sign in
+brew install flyctl                       # or: curl -L https://fly.io/install.sh | sh
+fly auth login                            # or `fly auth signup` for a new account
+
+# 1. Pick a globally-unique app name and stamp it into fly.toml
+APP=intake-gate-nick                       # <-- change me (lowercase, digits, hyphens)
+sed -i '' "s/^app = .*/app = \"$APP\"/" fly.toml   # macOS. Linux: drop the ''  ->  sed -i "s/..."
+
+# 2. Create the app + a 1 GB data volume in the same region as fly.toml (lhr = London)
+fly apps create "$APP"
+fly volumes create intake_data --size 1 --region lhr --app "$APP" --yes
+
+# 3. Set the production secrets (these override [env] in fly.toml)
+fly secrets set --app "$APP" \
+    INTAKE_SECRET="$(openssl rand -hex 32)" \
+    OAUTH_REDIRECT_BASE="https://$APP.fly.dev"
+
+# 4a. Deploy — offline mock backend (photos are flagged "too blurry")
+fly deploy --app "$APP"
+
+# 4b. OR deploy so it READS PHOTOS (vision): build with the LLM SDK + set the key
+fly secrets set --app "$APP" LLM_BACKEND=anthropic ANTHROPIC_API_KEY=sk-ant-...
+fly deploy --app "$APP" --build-arg WITH_LLM=1
 ```
-You get `https://<your-app>.fly.dev`. Point the iOS app there and you're off your LAN.
+
+Run **either** 4a or 4b (4b is the real one). Then verify:
+
+```bash
+fly status  --app "$APP"
+fly logs    --app "$APP"                   # watch startup; Ctrl+C to stop tailing
+curl https://$APP.fly.dev/api/health       # -> {"status":"ok"}
+fly open    --app "$APP"                    # opens https://<APP>.fly.dev
+```
+
+You now have a stable `https://<APP>.fly.dev`. In the iOS app, tap the gear and
+set the server to that URL — the phone works from any network, and this is the
+address you point your domain and your OAuth redirect URIs at.
+
+**Redeploy after a change:** `fly deploy --app "$APP"` (add `--build-arg WITH_LLM=1`
+if you use vision). **Change a secret:** `fly secrets set --app "$APP" KEY=value`
+(it restarts the machine). **Custom domain later:** `fly certs add app.your-domain`
+then add the DNS record it prints, and update `OAUTH_REDIRECT_BASE` to match.
+
+> Costs: one shared-cpu-1x machine + a 1 GB volume is a few $/month; `auto_stop_machines`
+> in fly.toml parks it when idle. Keep **one** machine while you use a single volume
+> (`min_machines_running = 1`); scaling to more machines needs one volume each.
+
 
 ## Option 2 — Amazon Lightsail (you already had it open)
 

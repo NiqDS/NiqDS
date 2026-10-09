@@ -1,9 +1,11 @@
 # Fly.io deployment (volume-native, simplest stateful option).
-#   fly launch --no-deploy      # creates the app, imports this file
-#   fly volumes create intake_data --size 1
-#   fly secrets set INTAKE_SECRET=$(openssl rand -hex 32) OAUTH_REDIRECT_BASE=https://<app>.fly.dev
-#   fly deploy
-app = "intake-gate"            # change to your app name
+# Full copy-paste runbook: docs/setup/deploy.md → "Option 1 — Fly.io". In short:
+#   APP=intake-gate-nick; sed -i '' "s/^app = .*/app = \"$APP\"/" fly.toml
+#   fly apps create "$APP"
+#   fly volumes create intake_data --size 1 --region lhr --app "$APP" --yes
+#   fly secrets set --app "$APP" INTAKE_SECRET=$(openssl rand -hex 32) OAUTH_REDIRECT_BASE=https://$APP.fly.dev
+#   fly deploy --app "$APP"                       # add --build-arg WITH_LLM=1 to read photos
+app = "intake-gate"            # change to your app name (see deploy.md)
 primary_region = "lhr"         # London
 
 [build]
