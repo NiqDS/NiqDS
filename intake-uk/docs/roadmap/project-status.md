@@ -63,9 +63,14 @@ Agent (code/docs I can do), **[N+A]** = together._
 ---
 
 ## ☁️ Infrastructure / deployment
-- ✅ **Deployment scaffolding done** — `Dockerfile`, compose, `fly.toml`,
-  `Procfile`, Caddyfile, env config, and `docs/setup/deploy.md` (Fly / Lightsail-
-  VM / Render recipes).
+- ✅ **Deployment scaffolding done + image verified** — `Dockerfile`, compose,
+  `fly.toml`, `Procfile`, Caddyfile, env config, and `docs/setup/deploy.md` (Fly /
+  Lightsail-VM / Render recipes). The image was built and run end-to-end (serves
+  `/login`, `/api/health`, `/robots.txt` on the production uvicorn CMD); the
+  Dockerfile can include the vision SDK with `--build-arg WITH_LLM=1`.
+- ✅ **Phone-reachability bridge** — `run-public.sh` opens a public HTTPS tunnel
+  (Cloudflare quick tunnel) so the iOS app works from any network today, without a
+  host. Documented in `deploy.md` + `ios/README.md`. (Temporary link; not for OAuth.)
 - ✅ **CI done** — `.github/workflows/ci.yml` runs `pytest` on push.
 - ✅ **Security hardening** — headers, Secure cookies behind HTTPS, upload cap.
 - ✅ **Access control on the bundle tool** — the practice routes (`/`, `/upload`,
@@ -73,8 +78,9 @@ Agent (code/docs I can do), **[N+A]** = together._
   is owner-scoped (`get_bundle(id, user_id)`); bundle/scan ids widened to full
   uuid4 hex. Closes the broken-access-control / IDOR finding from the security
   review. Covered by `tests/test_access_control.py`.
-- **[N+A] Actually deploy** to a host + HTTPS (pick one from the guide). Unblocks
-  off-LAN phone, TestFlight, and OAuth.
+- **[N+A] Actually deploy** to a permanent host + HTTPS (pick one from the guide).
+  The tunnel is the interim; a host unblocks a stable URL, TestFlight, and OAuth.
+  *Needs your account login (Fly/Render/VM) — one command once you pick one.*
 - **[N] Domain + DNS**; **[A] deploy the marketing site** (`website/`) + fill its
   placeholders.
 - **[A] Managed Postgres + object storage** (Phase 1, for scale); **[N+A] Backups.**

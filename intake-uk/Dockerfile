@@ -8,9 +8,13 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Install deps first for layer caching.
-COPY requirements.txt ./
+COPY requirements.txt requirements-optional.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-# To use a real LLM backend, also: pip install -r requirements-optional.txt
+# Real LLM backends (needed to read photos/scans via vision). Build with
+#   docker build --build-arg WITH_LLM=1 .
+# to include them; leave unset for the offline mock-backend image.
+ARG WITH_LLM=
+RUN if [ -n "$WITH_LLM" ]; then pip install --no-cache-dir -r requirements-optional.txt; fi
 
 # App code + the JSON fixtures the demo/mock backend needs (see .dockerignore).
 COPY . .

@@ -173,6 +173,10 @@ The backend is containerised (`Dockerfile`) and stores its data under
 `INTAKE_DATA_DIR` (mount a volume there). A public HTTPS URL unblocks off-LAN
 phone testing, TestFlight, and the Gmail/Microsoft OAuth drafts.
 
+**Phone alive today, no host yet:** `./run-public.sh` opens a public HTTPS tunnel
+to your local server — paste the printed `https://…trycloudflare.com` link into
+the iOS app. Bridge only; see `docs/setup/deploy.md` → "Fastest path".
+
 ```bash
 docker compose up --build         # local production-like run on :8000
 ```

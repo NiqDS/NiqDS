@@ -12,6 +12,15 @@ phone camera working through the web page's photo capture.
 
 ## Run it on your iPhone
 
+> **Easiest, and it dodges the usual "cannot connect" problem.** If your Wi-Fi
+> isolates devices (many home/office/guest networks do), the LAN IP below will
+> not connect. Instead open a public HTTPS link to your Mac:
+> ```bash
+> cd intake-uk && ./run-public.sh    # prints a https://<random>.trycloudflare.com link
+> ```
+> Put that `https://…` link into the app (step 6) and skip steps 1–2. See
+> `docs/setup/deploy.md` → "Fastest path".
+
 1. **Start the backend** on your Mac (from the repo root):
    ```bash
    cd intake-uk && ./run.sh      # serves http://127.0.0.1:8000

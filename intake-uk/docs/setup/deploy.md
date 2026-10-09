@@ -8,6 +8,27 @@ The app is containerised (`Dockerfile`) and stores its data (SQLite db, uploads,
 scans, session key) under `INTAKE_DATA_DIR` — so give it a **persistent volume**
 mounted there in production.
 
+## Fastest path — make the phone work *today* (tunnel, no host yet)
+
+If you just need the iOS app alive on your phone before you commit to a host —
+or your Wi-Fi isolates devices so the LAN IP won't connect — open a public HTTPS
+tunnel to the app running on your Mac:
+
+```bash
+cd intake-uk
+./run-public.sh      # prints a https://<random>.trycloudflare.com link
+```
+
+Type that `https://…trycloudflare.com` link into the iOS app (gear → server URL),
+or open it in the phone browser. It works from any network, and it is HTTPS, so
+iOS is happy. To read photos over it, start with a real backend:
+`LLM_BACKEND=anthropic ANTHROPIC_API_KEY=sk-ant-… ./run-public.sh`.
+
+Caveats: the link is **temporary** (it changes each run and dies when you stop
+the script), and **OAuth email drafts won't work** on it because they need a
+stable, registered callback URL. It is a bridge, not production — for a permanent
+address, deploy below.
+
 > Scale note: SQLite on one small instance is fine for early testing and a few
 > design partners. Multi-tenant scale wants Postgres — that's the Phase 1 upgrade
 > (see `docs/roadmap/project-status.md`), and it doesn't change how you deploy.
