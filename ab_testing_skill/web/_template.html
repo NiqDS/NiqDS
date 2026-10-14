@@ -229,7 +229,7 @@
   <div class="steps" id="handoff-steps" style="display:none; margin-top:22px;">
     <strong>Дальше — передайте файлы агенту:</strong>
     <ol>
-      <li>Сохраните оба скачанных файла в одну папку (например, рядом с пакетом <code>ab_testing_skill</code>).</li>
+      <li>Сохраните оба скачанных файла в одну папку — в корне скилла, рядом с папкой <code>skill/</code>.</li>
       <li>
         В терминале / в GigaCode-агенте выполните:
         <pre class="code-block" id="cli-command"></pre>
@@ -624,7 +624,7 @@
       `python -m skill.cli run --request request.json --inn-file ${innOutName}`;
 
     const gigaMessage =
-`Запусти AB-testing skill (ab_testing_skill/) для нового пилота.
+`Запусти AB-testing skill (этот репозиторий) для нового пилота.
 Параметры прикреплены в request.json, список ИНН — в ${innOutName}.
 Выполни: python -m skill.cli run --request request.json --inn-file ${innOutName}
 Верни мне итоговые файлы control_group / target_group и, если есть, конфликты по уже задействованным ИННкам.`;

@@ -54,8 +54,8 @@ wired to an HTTP endpoint with no change to `skill/pipeline.py`.
 ## Quickstart
 
 ```bash
+# from the root of the skill (the folder containing skill/, web/ and metric_scripts/)
 pip install -r requirements.txt   # optional: only needed for .xlsx output, else falls back to .csv
-cd ab_testing_skill
 
 # 1. open web/hub.html in a browser -- one button per product.
 #    Two are built ("АБ-Тест параметры пилота" and "Расчёт метрик по списку ID");
