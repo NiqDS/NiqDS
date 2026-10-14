@@ -9,8 +9,8 @@ This is the module a GigaCode tool/function wrapper should call --
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from datetime import date
+from dataclasses import dataclass, field
+from datetime import date, timedelta
 from pathlib import Path
 
 from .config import SkillConfig, default_config
@@ -18,6 +18,7 @@ from .connectors.dashboard_connector import DashboardConnector, LocalDropzoneDas
 from .connectors.email_connector import EmailConnector, LoggingEmailConnector, OutgoingEmail
 from .exporter import write_financial_effect_file, write_group_file
 from .inn_utils import validate_file
+from .method_advisor import PERIOD_DAYS, describe, method_label
 from .metrics.runner import MetricRunner
 from .models import OverlapFinding, PilotRequest, PilotResult, ValidationIssue
 from .registries import (
@@ -27,6 +28,8 @@ from .registries import (
     MetricRequestRecord,
     MetricRequestsRegistry,
     OverlapRegistry,
+    RebaseReminderRecord,
+    RebaseRemindersRegistry,
     check_and_register,
     check_master_status,
     finalize_roles,
@@ -89,6 +92,65 @@ def build_default_connectors(config: SkillConfig) -> tuple[EmailConnector, Dashb
     return email, dashboard
 
 
+@dataclass
+class MethodPlan:
+    """What the chosen split method means operationally for this pilot.
+
+    All three methods split wave 1 identically -- the difference is what
+    happens afterwards, so this is resolved up front (to report it in the
+    setup package) and acted on after the split.
+    """
+
+    method: str
+    label: str
+    rebase_required: bool
+    homogeneity_recheck_required: bool
+    confirmed: bool
+    #: "questionnaire" | "override" | "not_assessed"
+    source: str
+    outline: list[str] = field(default_factory=list)
+    override_reason: str = ""
+
+    @property
+    def needs_waves(self) -> bool:
+        """True when later waves of clients will be added to this pilot.
+
+        Only the cascade method grows: `single_monitored` rebases the
+        comparison baseline, not the membership.
+        """
+        return self.method == "cascade_rebase"
+
+
+def resolve_method_plan(request: PilotRequest) -> MethodPlan:
+    decision = getattr(request, "split_method", None)
+    if decision is None or not decision.method:
+        # The original behaviour, and still the right default: a request
+        # that never went through the questionnaire gets the one-shot
+        # split. Reported as "not assessed" in the package so the analyst
+        # knows nobody judged it, rather than seeing it as a positive
+        # choice of "no rebase".
+        return MethodPlan(
+            method="single",
+            label=method_label("single"),
+            rebase_required=False,
+            homogeneity_recheck_required=False,
+            confirmed=False,
+            source="not_assessed",
+        )
+
+    spec = describe(decision.method)
+    return MethodPlan(
+        method=decision.method,
+        label=spec.label if spec else decision.method,
+        rebase_required=bool(spec and spec.rebase_required),
+        homogeneity_recheck_required=bool(spec and spec.homogeneity_recheck_required),
+        confirmed=decision.confirmed,
+        source="override" if decision.chosen != decision.recommended else "questionnaire",
+        outline=list(spec.outline) if spec else [],
+        override_reason=decision.override_reason,
+    )
+
+
 def run_intake(
     request: PilotRequest,
     inn_file: Path,
@@ -109,6 +171,7 @@ def run_intake(
     # from the request alone is made here, first.
     runner = MetricRunner(config.metrics)
     validate_pilot_request(request, known_metrics=set(runner.manifest))
+    method_plan = resolve_method_plan(request)
 
     # --- Step 1: format + INN validity -----------------------------------
     validation = validate_file(Path(inn_file), check_control_digits=strict_inn_checksum)
@@ -249,7 +312,7 @@ def run_intake(
         OutgoingEmail(
             to=request.recipient_emails or [request.submitter_email],
             subject=f"AB pilot '{request.pilot_name}': Control/Target groups ready",
-            body=_format_result_summary(request, split_result),
+            body=_format_result_summary(request, split_result, method_plan),
             attachments=[control_path, target_path],
         )
     )
@@ -271,7 +334,9 @@ def run_intake(
     package_attachments = [control_path, target_path]
     if financial_effect_path:
         package_attachments.append(financial_effect_path)
-    package_body = _format_pilot_package(request, split_result, coverage, len(available))
+    package_body = _format_pilot_package(
+        request, split_result, coverage, len(available), method_plan
+    )
     email_connector.send(
         OutgoingEmail(
             to=[config.notify.dev_team_email],
@@ -289,7 +354,14 @@ def run_intake(
         )
     )
 
-    _write_pilot_meta(pilot_folder, request)
+    _write_pilot_meta(pilot_folder, request, method_plan)
+
+    # The reminder, in the two places it is actually looked for: a note in
+    # the pilot folder for whoever opens the deliverables, and a row in the
+    # reminders table for whoever asks "what is due this month".
+    if method_plan.rebase_required:
+        _write_rebase_note(pilot_folder, request, method_plan)
+        _register_rebase_reminder(config, pilot_folder, request, method_plan)
 
     return PilotResult(
         request=request,
@@ -301,15 +373,104 @@ def run_intake(
         duplicate_findings=blocked,
         rejected_inns=validation.issues,
         coverage=coverage,
+        split_method=method_plan.method,
+        rebase_required=method_plan.rebase_required,
     )
 
 
-def _write_pilot_meta(pilot_folder: Path, request: PilotRequest) -> None:
+REBASE_NOTE_FILENAME = "REBASE_REQUIRED.md"
+
+
+def _write_rebase_note(pilot_folder: Path, request: PilotRequest, plan: MethodPlan) -> None:
+    """Human-readable note next to the CG/TG files.
+
+    Deliberately in the pilot folder and deliberately in Russian: the
+    person who opens this folder in three weeks to run the next period is
+    not necessarily the person who filled in the form, and the one thing
+    they must not do is treat the groups as final.
+    """
+    lines = [
+        f"# Этот пилот требует ребейза: {plan.label}",
+        "",
+        f"Пилот: **{request.pilot_name}** ({request.valid_from} .. {request.valid_to})",
+        f"Метод разделения: `{plan.method}` — {plan.label}",
+        f"Частота пересчёта: {request.recalculation_frequency}",
+        "",
+        "## Что нужно делать на каждом пересчёте",
+        "",
+        "1. Проверить сопоставимость КГ и ЦГ по каждой финансовой статье (SMD <= 0.1). "
+        "Это делается автоматически при `python -m skill.cli recalc` — результат пишется "
+        "в `homogeneity_checks.csv` в этой же папке.",
+        "2. Если по какой-то статье SMD вышел за порог — зафиксировать дату и статью: "
+        "с этого периода сравнение групп менее надёжно, база сравнения пересчитывается "
+        "с этой даты.",
+        "3. **Состав групп не переразделять.** Клиент, уже получивший воздействие, "
+        "в контрольной группе испортит расчёт. Ребейз — это пересчёт базы сравнения, "
+        "а не перераспределение клиентов.",
+    ]
+    if plan.needs_waves:
+        lines.extend(
+            [
+                "4. Новая партия клиентов распределяется отдельной волной, по тем же "
+                "однородным подгруппам, и только среди тех, кто ещё не в пилоте.",
+                "",
+                "## Волны",
+                "",
+                "Файл с новой партией ИНН присылается в том же формате (столбец `inn`). "
+                "Клиенты, уже находящиеся в КГ/ЦГ этого пилота, из новой волны исключаются, "
+                "а не переназначаются.",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## Как метод был выбран",
+            "",
+            f"Источник решения: {plan.source}"
+            + (" (пользователь подтвердил описание метода)" if plan.confirmed else ""),
+        ]
+    )
+    if plan.override_reason:
+        lines.append(f"Отклонение от рекомендации: {plan.override_reason}")
+    if plan.outline:
+        lines.extend(["", "Описание метода, которое подтвердил заказчик:", ""])
+        lines.extend(f"{i}. {step}" for i, step in enumerate(plan.outline, 1))
+    (pilot_folder / REBASE_NOTE_FILENAME).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _register_rebase_reminder(
+    config: SkillConfig, pilot_folder: Path, request: PilotRequest, plan: MethodPlan
+) -> None:
+    reminders = RebaseRemindersRegistry(config.registry.rebase_reminders_path)
+    step = PERIOD_DAYS.get(request.recalculation_frequency, 30)
+    next_due = max(date.today(), request.valid_from) + timedelta(days=step)
+    reminders.upsert(
+        RebaseReminderRecord(
+            no=0,
+            pilot_name=request.pilot_name,
+            pilot_slug=request.slug(),
+            pilot_folder=str(pilot_folder),
+            method=plan.method,
+            cadence=request.recalculation_frequency,
+            next_due=next_due.isoformat(),
+            valid_to=request.valid_to.isoformat(),
+            homogeneity_recheck="yes" if plan.homogeneity_recheck_required else "no",
+            note=(
+                "новая волна + проверка сопоставимости"
+                if plan.needs_waves
+                else "проверка сопоставимости + ребейз базы, состав не меняется"
+            ),
+        )
+    )
+
+
+def _write_pilot_meta(pilot_folder: Path, request: PilotRequest, plan: MethodPlan) -> None:
     """Persists what monitoring.py needs to run step 6 without the original
 
     PilotRequest object in hand (a recalculation run is typically kicked
     off later, e.g. by cron, from just a pilot folder path).
     """
+    decision = getattr(request, "split_method", None)
     meta = {
         "pilot_slug": request.slug(),
         "pilot_name": request.pilot_name,
@@ -324,6 +485,17 @@ def _write_pilot_meta(pilot_folder: Path, request: PilotRequest) -> None:
         "recipient_emails": request.recipient_emails,
         "analyst_email": request.analyst_email,
         "created_at": date.today().isoformat(),
+        # The method and its consequences, so a recalculation run started
+        # months later from a folder path alone knows whether it has to
+        # re-check comparability.
+        "split_method": plan.method,
+        "split_method_label": plan.label,
+        "split_method_source": plan.source,
+        "split_method_confirmed": plan.confirmed,
+        "rebase_required": plan.rebase_required,
+        "homogeneity_recheck_required": plan.homogeneity_recheck_required,
+        "split_method_answers": decision.answers if decision else {},
+        "split_method_override_reason": plan.override_reason,
     }
     (pilot_folder / "pilot_meta.json").write_text(
         json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -360,24 +532,72 @@ def _format_overlap_report(request: PilotRequest, blocked: list[OverlapFinding])
     return "\n".join(lines)
 
 
-def _format_result_summary(request: PilotRequest, split_result) -> str:
-    return "\n".join(
+def _format_result_summary(request: PilotRequest, split_result, plan: MethodPlan) -> str:
+    lines = [
+        f"Pilot: {request.pilot_name} ({request.valid_from} .. {request.valid_to})",
+        f"Control group: {len(split_result.control)} clients",
+        f"Target group: {len(split_result.target)} clients",
+        f"Financial balance check: {'PASSED' if split_result.balanced else 'NOT balanced within tolerance'} "
+        f"(after {split_result.attempts_used} attempt(s))",
+        "",
+        "See attached control_group / target_group files (INN column renamed to 'codes').",
+    ]
+    if plan.rebase_required:
+        lines.extend(["", *_rebase_reminder_lines(plan)])
+    return "\n".join(lines)
+
+
+def _rebase_reminder_lines(plan: MethodPlan) -> list[str]:
+    """The reminder, in the body of every delivery email for this pilot.
+
+    Repeated rather than mentioned once at intake, because the failure mode
+    is someone treating these two files as the final groups.
+    """
+    lines = [
+        f"ВАЖНО -- метод разделения: {plan.label}",
+        "Эти файлы НЕ являются окончательным составом групп.",
+    ]
+    if plan.needs_waves:
+        lines.append(
+            "  - Это первая волна. Следующая партия клиентов распределяется отдельно, "
+            "по тем же однородным подгруппам; клиенты из этой волны не переназначаются."
+        )
+    lines.extend(
         [
-            f"Pilot: {request.pilot_name} ({request.valid_from} .. {request.valid_to})",
-            f"Control group: {len(split_result.control)} clients",
-            f"Target group: {len(split_result.target)} clients",
-            f"Financial balance check: {'PASSED' if split_result.balanced else 'NOT balanced within tolerance'} "
-            f"(after {split_result.attempts_used} attempt(s))",
-            "",
-            "See attached control_group / target_group files (INN column renamed to 'codes').",
+            "  - На каждом пересчёте проверяется сопоставимость КГ и ЦГ (SMD <= 0.1); "
+            "результат пишется в homogeneity_checks.csv в папке пилота.",
+            "  - При расхождении база сравнения пересчитывается (ребейз) с этой даты. "
+            "Состав групп при этом НЕ переразделяется.",
+            f"  - Подробности и чек-лист: {REBASE_NOTE_FILENAME} в папке пилота.",
         ]
     )
+    return lines
 
 
 def _format_pilot_package(
-    request: PilotRequest, split_result, coverage: dict[str, int], candidate_count: int
+    request: PilotRequest,
+    split_result,
+    coverage: dict[str, int],
+    candidate_count: int,
+    plan: MethodPlan,
 ) -> str:
     lines = _coverage_lines(coverage, candidate_count)
+    method_lines = [
+        f"Split method: {plan.method} -- {plan.label}",
+        f"  decided by: {plan.source}"
+        + ("; confirmed by the submitter" if plan.confirmed else "; NOT confirmed"),
+        f"  rebase required: {'YES' if plan.rebase_required else 'no'}",
+        f"  comparability re-check each period: "
+        f"{'YES' if plan.homogeneity_recheck_required else 'no'}",
+    ]
+    if plan.source == "not_assessed":
+        method_lines.append(
+            "  <-- the split-method questionnaire was not filled in, so this pilot ran as "
+            "a one-shot split. If clients are onboarded in waves or the list will grow, "
+            "this pilot needs re-running under the cascade method."
+        )
+    if plan.override_reason:
+        method_lines.append(f"  override reason: {plan.override_reason}")
     return "\n".join(
         [
             f"Pilot name: {request.pilot_name}",
@@ -391,6 +611,8 @@ def _format_pilot_package(
             f"Target group size: {len(split_result.target)}",
             f"Balance check (SMD <= {0.1}): {'PASSED' if split_result.balanced else 'NOT balanced'} "
             f"(attempts: {split_result.attempts_used}, seed: {split_result.seed})",
+            "",
+            *method_lines,
             "",
             *lines,
         ]

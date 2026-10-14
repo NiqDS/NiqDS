@@ -144,6 +144,63 @@ class MetricRequestsRegistry(_CsvRegistry):
     record_cls = MetricRequestRecord
 
 
+@dataclass
+class RebaseReminderRecord:
+    no: int
+    pilot_name: str
+    pilot_slug: str
+    pilot_folder: str
+    method: str
+    cadence: str
+    next_due: str
+    valid_to: str
+    homogeneity_recheck: str  # "yes" | "no"
+    note: str
+
+
+class RebaseRemindersRegistry(_CsvRegistry):
+    """Pilots that need a rebase + comparability re-check each period.
+
+    A note in the pilot folder tells whoever opens that folder; this table
+    answers the question nobody can answer from the folders -- "which
+    pilots are due a rebase now?" -- which is what a scheduler or the
+    analyst on duty actually needs. One row per pilot, appended at intake;
+    `monitoring.run_recalculation` updates `next_due` as periods pass.
+    """
+
+    record_cls = RebaseReminderRecord
+
+    def upsert(self, record: RebaseReminderRecord) -> None:
+        """Replaces the row for this pilot_slug, or appends a new one.
+
+        Rewrites the file rather than appending a second row for the same
+        pilot: this table is read to decide what to do next, so two rows
+        with different `next_due` for one pilot is a worse failure than the
+        cost of the rewrite (one row per pilot, not per client).
+        """
+        existing = [r for r in self.load() if r.pilot_slug != record.pilot_slug]
+        header = [f.name for f in fields(self.record_cls)]
+        with open(self.path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=header)
+            writer.writeheader()
+            for no, row in enumerate(existing, start=1):
+                row.no = no
+                writer.writerow(asdict(row))
+            record.no = len(existing) + 1
+            writer.writerow(asdict(record))
+
+    def due_on(self, as_of: date) -> list[RebaseReminderRecord]:
+        """Pilots whose rebase is due on/before `as_of` and still running."""
+        due = []
+        for row in self.load():
+            try:
+                if _parse_date(row.next_due) <= as_of <= _parse_date(row.valid_to):
+                    due.append(row)
+            except ValueError:  # malformed date in the table -- surface it, don't crash
+                due.append(row)
+        return due
+
+
 def _parse_date(value: str) -> date:
     return datetime.strptime(value, "%Y-%m-%d").date()
 

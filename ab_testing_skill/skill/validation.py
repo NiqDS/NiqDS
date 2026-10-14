@@ -114,8 +114,89 @@ def validate_pilot_request(request, known_metrics: set[str] | None = None) -> No
                 RequestIssue("expected_effect_pct", f"must be positive, got {effect}")
             )
 
+    _check_split_method(getattr(request, "split_method", None), issues)
+
     if issues:
         raise RequestValidationError(issues)
+
+
+def _check_split_method(decision, issues: list[RequestIssue]) -> None:
+    """Validates the split-method questionnaire block, when there is one.
+
+    Absent is allowed: requests submitted before the questionnaire existed
+    (and hand-written ones) must keep working, and the pipeline falls back
+    to the one-shot split that was the only behaviour then -- it says so in
+    the setup package rather than deciding quietly.
+
+    Present but unconfirmed is NOT allowed. The method determines whether
+    the pilot is re-split wave by wave and whether comparability is
+    re-checked each period; a pilot run under the wrong one cannot be
+    repaired afterwards, so an answered-but-unconfirmed questionnaire is a
+    half-finished intake, not a default.
+    """
+    if decision is None:
+        return
+
+    # Imported here, not at module scope: validation.py is deliberately
+    # dependency-free so it can run in a browser-side port or a bare
+    # environment, and this is the one check that needs the catalog.
+    from .method_advisor import UnknownAnswerError, _collect_flags, methods
+
+    known = set(methods())
+
+    if decision.chosen and decision.chosen not in known:
+        issues.append(
+            RequestIssue(
+                "split_method.chosen",
+                f"unknown split method {decision.chosen!r}; known: {', '.join(sorted(known))}",
+            )
+        )
+    if decision.recommended and decision.recommended not in known:
+        issues.append(
+            RequestIssue(
+                "split_method.recommended",
+                f"unknown split method {decision.recommended!r}; known: {', '.join(sorted(known))}",
+            )
+        )
+
+    if decision.answers:
+        try:
+            _collect_flags(decision.answers)
+        except UnknownAnswerError as exc:
+            issues.append(RequestIssue("split_method.answers", str(exc)))
+
+    if not decision.method:
+        issues.append(
+            RequestIssue(
+                "split_method",
+                "questionnaire block present but no method chosen -- run "
+                "`python -m skill.cli advise-method` and record the answer",
+            )
+        )
+        return
+
+    if not decision.confirmed:
+        issues.append(
+            RequestIssue(
+                "split_method.confirmed",
+                "the submitter has not confirmed that the method's description fits this "
+                f"pilot ({decision.method!r}). Show them the outline "
+                "(`python -m skill.cli advise-method --describe "
+                f"{decision.method}`) and record their answer; picking the wrong method "
+                "cannot be corrected once the pilot has started",
+            )
+        )
+
+    if decision.chosen and decision.recommended and decision.chosen != decision.recommended:
+        if not decision.override_reason.strip():
+            issues.append(
+                RequestIssue(
+                    "split_method.override_reason",
+                    f"the recommendation was {decision.recommended!r} but {decision.chosen!r} "
+                    "was chosen instead -- state why, so the analyst reading this pilot "
+                    "later knows the deviation was deliberate",
+                )
+            )
 
 
 def validate_calculation_request(request, known_metrics: set[str] | None = None) -> None:

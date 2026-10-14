@@ -11,6 +11,7 @@ configured frequency: each call just recalculates as-of today and appends
 """
 from __future__ import annotations
 
+import csv
 import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -19,6 +20,7 @@ from .config import SkillConfig, default_config
 from .connectors.dashboard_connector import DashboardConnector, LocalDropzoneDashboardConnector
 from .exporter import read_codes_file, read_rows, write_financial_effect_file
 from .metrics.runner import MetricRunner
+from .splitter import _balance_report
 
 FREQUENCY_TO_TIMEDELTA = {
     "day": timedelta(days=1),
@@ -156,5 +158,107 @@ def run_recalculation(
     path = write_financial_effect_file(
         pilot_folder, as_of_date, financial_values, group_of, mode=config.storage.recalc_mode
     )
+
+    # The comparability re-check the cascade/monitored methods promise. Runs
+    # on the metric values this pass already computed, so it costs nothing
+    # extra -- and it has to run here, because a one-off check at intake says
+    # nothing about whether the groups are still comparable six periods in.
+    if meta.get("homogeneity_recheck_required"):
+        run_homogeneity_check(
+            pilot_folder,
+            control=control,
+            target=target,
+            financial_values=financial_values,
+            as_of_date=as_of_date,
+            max_standardized_diff=config.split.max_standardized_diff,
+        )
+
     dashboard_connector.upload(meta["pilot_slug"], path)
     return path
+
+
+HOMOGENEITY_FILENAME = "homogeneity_checks.csv"
+
+
+def run_homogeneity_check(
+    pilot_folder: Path,
+    control: list[str],
+    target: list[str],
+    financial_values: dict[str, dict],
+    as_of_date: date,
+    max_standardized_diff: float,
+) -> dict[str, dict[str, float]]:
+    """Re-checks CG/TG comparability on the membership that exists today.
+
+    Appends one row per financial article per report_date to
+    `homogeneity_checks.csv` in the pilot folder, so the analyst can see
+    *from which period* the comparison stopped being reliable rather than
+    only that it is unreliable now.
+
+    Deliberately does not re-split anything. Once a client in the target
+    group has had the treatment, moving them to control to restore balance
+    would contaminate the control group -- the rebase is a recalculation of
+    the comparison baseline, not a reassignment of clients. That
+    distinction is the whole reason the questionnaire exists.
+    """
+    report = _balance_report(control, target, financial_values, max_standardized_diff)
+    path = Path(pilot_folder) / HOMOGENEITY_FILENAME
+    header = [
+        "report_date",
+        "article",
+        "control_n",
+        "target_n",
+        "control_mean",
+        "target_mean",
+        "smd",
+        "threshold",
+        "within_tolerance",
+        "action",
+    ]
+    is_new = not path.exists()
+    with open(path, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if is_new:
+            writer.writerow(header)
+        for article, stats in sorted(report.items()):
+            within = stats["balanced"] == 1.0
+            writer.writerow(
+                [
+                    as_of_date.isoformat(),
+                    article,
+                    int(stats["control_n"]),
+                    int(stats["target_n"]),
+                    f"{stats['control_mean']:.4f}",
+                    f"{stats['target_mean']:.4f}",
+                    f"{stats['smd']:.4f}",
+                    max_standardized_diff,
+                    "yes" if within else "no",
+                    "" if within else "REBASE: пересчитать базу сравнения с этой даты",
+                ]
+            )
+    return report
+
+
+def latest_homogeneity_check(pilot_folder: Path) -> dict | None:
+    """The most recent check's rows, for a caller that needs to report it.
+
+    `run_recalculation` keeps returning the financial-effect path (callers
+    and schedulers depend on that), so the check is read back from disk
+    rather than threaded through its return type.
+    """
+    path = Path(pilot_folder) / HOMOGENEITY_FILENAME
+    if not path.exists():
+        return None
+    with open(path, newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    if not rows:
+        return None
+    last_date = max(row["report_date"] for row in rows)
+    latest = [row for row in rows if row["report_date"] == last_date]
+    drifted = [row["article"] for row in latest if row["within_tolerance"] == "no"]
+    return {
+        "report_date": last_date,
+        "articles": latest,
+        "drifted_articles": drifted,
+        "rebase_needed": bool(drifted),
+    }

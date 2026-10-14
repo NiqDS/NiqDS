@@ -94,6 +94,23 @@
     background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
     padding: 10px 12px; font-size: 12.5px; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
   }
+  .q-block { margin-top: 16px; }
+  .q-block:first-child { margin-top: 4px; }
+  .q-title { font-size: 14px; font-weight: 600; }
+  .q-why { color: var(--muted); font-size: 12px; margin: 3px 0 7px; }
+  .q-option { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; margin: 4px 0; }
+  .q-option input { margin-top: 3px; }
+  .method-card {
+    margin-top: 16px; border: 1px solid var(--accent); border-radius: 10px;
+    padding: 14px 16px; background: var(--panel); font-size: 13.5px;
+  }
+  .method-card h3 { margin: 0 0 6px; font-size: 15px; }
+  .method-card ol, .method-card ul { margin: 6px 0 0; padding-left: 20px; }
+  .method-card li { margin: 4px 0; }
+  .method-card .block-label {
+    margin-top: 12px; font-weight: 600; font-size: 13px;
+  }
+  .method-card .warn { color: var(--danger); }
 </style>
 </head>
 <body>
@@ -177,6 +194,32 @@
       <p class="hint">Эти же метрики используются агентом при периодическом пересчёте (шаг 6) для дэшборда в Навигаторе.</p>
     </fieldset>
 
+    <fieldset>
+      <legend>6. Как делить список: опрос о пилоте</legend>
+      <p class="hint">
+        Пять вопросов о том, как устроен ваш пилот. По ответам агент сам предложит метод
+        разделения — одномоментный или каскадный, с ребейзом. Ничего знать про статистику
+        не нужно: отвечайте про запуск, а не про расчёты.
+      </p>
+      <div id="method-questions"></div>
+      <div class="actions" style="margin-top:14px;">
+        <button type="button" class="secondary" id="advise-btn">Подобрать метод разделения</button>
+      </div>
+      <div id="method-card" class="method-card" style="display:none;"></div>
+      <div class="actions" id="method-confirm-actions" style="display:none;">
+        <button type="button" class="primary" id="method-yes">Да, это про мой пилот</button>
+        <button type="button" class="secondary" id="method-no">Нет, показать альтернативу</button>
+      </div>
+      <div id="method-override" style="display:none; margin-top:12px;">
+        <label for="override_reason">Почему рекомендованный метод не подходит? (обязательно)</label>
+        <textarea id="override_reason" placeholder="Например: клиенты подключаются партиями, но каждая партия — отдельный пилот со своим расчётом"></textarea>
+        <div class="actions">
+          <button type="button" class="primary" id="method-accept-alt">Выбрать альтернативный метод</button>
+        </div>
+      </div>
+      <div class="banner" id="method-banner"></div>
+    </fieldset>
+
     <div class="actions">
       <button type="submit" class="primary">Сформировать request.json + inn_list.csv</button>
     </div>
@@ -200,6 +243,19 @@
 
 <script>
   const METRICS_CATALOG = /*__METRICS_CATALOG__*/[]/*__END_METRICS_CATALOG__*/;
+  // The whole questionnaire -- questions, methods, outlines AND the decision
+  // rules -- is injected from skill/split_method_questionnaire.json by
+  // web/build_form.py. Only the ~10-line resolution loop below is a
+  // reimplementation of skill/method_advisor.recommend(); every piece of text
+  // and every rule has a single source, so the form and the skill cannot
+  // disagree about what a method means. Re-run build_form.py after editing
+  // that JSON.
+  const METHOD_QUESTIONNAIRE = /*__METHOD_QUESTIONNAIRE__*/{}/*__END_METHOD_QUESTIONNAIRE__*/;
+  const LONG_HORIZON_ITERATIONS = 6;
+  const PERIOD_DAYS = { day: 1, week: 7, month: 30 };
+
+  let methodDecision = null;   // what gets written into request.json
+  let lastRecommendation = null;
 
   function renderMetricChecks(containerId, usableAs, namePrefix) {
     const container = document.getElementById(containerId);
@@ -223,8 +279,229 @@
       .map(el => el.dataset.code);
   }
 
-  const innFileInput = document.getElementById('inn_file');
-  const innPreview = document.getElementById('inn_preview');
+  // --- split-method questionnaire (section 6) -------------------------------
+
+  function renderQuestionnaire() {
+    const container = document.getElementById('method-questions');
+    container.innerHTML = '';
+    (METHOD_QUESTIONNAIRE.questions || []).forEach(q => {
+      const block = document.createElement('div');
+      block.className = 'q-block';
+      const title = document.createElement('div');
+      title.className = 'q-title';
+      title.textContent = q.question;
+      const why = document.createElement('div');
+      why.className = 'q-why';
+      why.textContent = q.why;
+      block.appendChild(title);
+      block.appendChild(why);
+      q.options.forEach(opt => {
+        const id = `q_${q.id}_${opt.id}`;
+        const row = document.createElement('label');
+        row.className = 'q-option';
+        row.htmlFor = id;
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = `q_${q.id}`;
+        input.id = id;
+        input.value = opt.id;
+        input.dataset.question = q.id;
+        const span = document.createElement('span');
+        span.textContent = opt.label;
+        row.appendChild(input);
+        row.appendChild(span);
+        block.appendChild(row);
+      });
+      container.appendChild(block);
+    });
+  }
+  renderQuestionnaire();
+
+  function collectedAnswers() {
+    const answers = {};
+    (METHOD_QUESTIONNAIRE.questions || []).forEach(q => {
+      const picked = document.querySelector(`input[name="q_${q.id}"]:checked`);
+      if (picked) answers[q.id] = picked.value;
+    });
+    return answers;
+  }
+
+  function expectedIterations() {
+    const from = document.getElementById('valid_from').value;
+    const to = document.getElementById('valid_to').value;
+    const freq = document.getElementById('recalculation_frequency').value;
+    if (!from || !to) return null;
+    const days = Math.max((new Date(to) - new Date(from)) / 86400000, 0);
+    return Math.max(Math.floor(days / (PERIOD_DAYS[freq] || 30)), 1);
+  }
+
+  // Mirror of skill/method_advisor._collect_flags + recommend().
+  function recommendMethod(answers, iterations) {
+    const flags = [];
+    const unknowns = [];
+    (METHOD_QUESTIONNAIRE.questions || []).forEach(q => {
+      const chosen = (q.options || []).find(o => o.id === answers[q.id]);
+      if (!chosen) return;
+      (chosen.implies || []).forEach(f => { if (!flags.includes(f)) flags.push(f); });
+      if (chosen.unknown) unknowns.push(q.question);
+    });
+    if (iterations !== null && iterations >= LONG_HORIZON_ITERATIONS) flags.push('long_horizon');
+
+    const decisive = flags.filter(f => f !== 'nested_tiers');
+    const rule = (METHOD_QUESTIONNAIRE.rules || []).find(
+      r => r.if_any.length === 0 || r.if_any.some(f => decisive.includes(f))
+    );
+    const method = METHOD_QUESTIONNAIRE.methods[rule.method];
+    const reasons = [rule.because];
+    const flagReasons = {
+      membership_grows: 'по вашим ответам состав пилота будет пополняться после старта',
+      strata_drift: 'по вашим ответам характеристики клиентов за время пилота изменятся',
+      attrition: 'по вашим ответам ожидается отток клиентов из пилота'
+    };
+    rule.if_any.filter(f => decisive.includes(f)).forEach(f => {
+      if (flagReasons[f]) reasons.push(flagReasons[f]);
+      if (f === 'long_horizon') reasons.push(
+        `срок пилота даёт ${iterations} пересчёт(ов) — на такой дистанции сопоставимость ` +
+        'групп нужно перепроверять, а не считать заданной на старте'
+      );
+    });
+
+    return {
+      key: rule.method,
+      spec: method,
+      reasons,
+      unknowns,
+      alternative: rule.alternative,
+      modifier: flags.includes('nested_tiers')
+        ? METHOD_QUESTIONNAIRE.modifiers.nested_tiers.note
+        : null
+    };
+  }
+
+  function listBlock(card, label, items, ordered) {
+    if (!items || !items.length) return;
+    const head = document.createElement('div');
+    head.className = 'block-label';
+    head.textContent = label;
+    card.appendChild(head);
+    const list = document.createElement(ordered ? 'ol' : 'ul');
+    items.forEach(text => {
+      const li = document.createElement('li');
+      li.textContent = text;
+      list.appendChild(li);
+    });
+    card.appendChild(list);
+  }
+
+  function renderMethodCard(rec, isAlternative) {
+    const card = document.getElementById('method-card');
+    card.innerHTML = '';
+    card.style.display = 'block';
+
+    const h = document.createElement('h3');
+    h.textContent = (isAlternative ? 'Альтернативный метод: ' : 'Рекомендуемый метод: ') + rec.spec.label;
+    card.appendChild(h);
+
+    const summary = document.createElement('div');
+    summary.textContent = rec.spec.summary;
+    card.appendChild(summary);
+
+    if (!isAlternative) listBlock(card, 'Почему именно он:', rec.reasons, false);
+
+    if (rec.unknowns && rec.unknowns.length) {
+      const warn = document.createElement('div');
+      warn.className = 'block-label warn';
+      warn.textContent = 'Часть ответов — «не знаю», метод выбран по осторожному варианту. '
+        + 'Если это важно, уточните и подберите метод заново:';
+      card.appendChild(warn);
+      listBlock(card, '', rec.unknowns, false);
+    }
+
+    listBlock(card, 'Как это будет работать:', rec.spec.outline, true);
+    listBlock(card, 'Что потребуется от вас:', rec.spec.requires_from_user, false);
+    if (rec.modifier) listBlock(card, 'Дополнительно:', [rec.modifier], false);
+    listBlock(card, 'Подходит, когда:', [rec.spec.fits_when], false);
+    listBlock(card, 'Чем рискуете, если метод выбран неверно:', [rec.spec.risk_if_wrong], false);
+
+    const confirm = document.createElement('div');
+    confirm.className = 'block-label';
+    confirm.textContent = isAlternative
+      ? 'Если этот метод описывает ваш пилот — укажите причину отклонения рекомендации и подтвердите.'
+      : METHOD_QUESTIONNAIRE.confirmation_question;
+    card.appendChild(confirm);
+  }
+
+  const methodBanner = document.getElementById('method-banner');
+
+  document.getElementById('advise-btn').addEventListener('click', () => {
+    methodBanner.className = 'banner'; methodBanner.textContent = '';
+    const answers = collectedAnswers();
+    const unanswered = (METHOD_QUESTIONNAIRE.questions || []).filter(q => !answers[q.id]);
+    if (unanswered.length) {
+      methodBanner.className = 'banner error';
+      methodBanner.textContent = `Ответьте на все вопросы (осталось: ${unanswered.length}). `
+        + 'Если не знаете — выберите вариант «не знаю», он тоже учитывается.';
+      return;
+    }
+    lastRecommendation = recommendMethod(answers, expectedIterations());
+    lastRecommendation.answers = answers;
+    renderMethodCard(lastRecommendation, false);
+    document.getElementById('method-confirm-actions').style.display = 'flex';
+    document.getElementById('method-override').style.display = 'none';
+    methodDecision = null;
+  });
+
+  document.getElementById('method-yes').addEventListener('click', () => {
+    methodDecision = {
+      answers: lastRecommendation.answers,
+      recommended: lastRecommendation.key,
+      chosen: lastRecommendation.key,
+      confirmed: true,
+      override_reason: ''
+    };
+    document.getElementById('method-confirm-actions').style.display = 'none';
+    document.getElementById('method-override').style.display = 'none';
+    methodBanner.className = 'banner ok';
+    methodBanner.textContent = `Метод зафиксирован: ${lastRecommendation.spec.label}.`
+      + (lastRecommendation.spec.rebase_required
+        ? ' Агент добавит в папку пилота напоминание о ребейзе и будет проверять сопоставимость групп на каждом пересчёте.'
+        : ' Ребейз не требуется.');
+  });
+
+  document.getElementById('method-no').addEventListener('click', () => {
+    const altKey = lastRecommendation.alternative;
+    renderMethodCard(
+      { key: altKey, spec: METHOD_QUESTIONNAIRE.methods[altKey], reasons: [], unknowns: [], modifier: lastRecommendation.modifier },
+      true
+    );
+    document.getElementById('method-confirm-actions').style.display = 'none';
+    document.getElementById('method-override').style.display = 'block';
+    methodDecision = null;
+  });
+
+  document.getElementById('method-accept-alt').addEventListener('click', () => {
+    const reason = document.getElementById('override_reason').value.trim();
+    if (!reason) {
+      methodBanner.className = 'banner error';
+      methodBanner.textContent = 'Укажите причину — она попадёт в карточку пилота, '
+        + 'чтобы аналитик видел, что отклонение от рекомендации было осознанным.';
+      return;
+    }
+    const altKey = lastRecommendation.alternative;
+    methodDecision = {
+      answers: lastRecommendation.answers,
+      recommended: lastRecommendation.key,
+      chosen: altKey,
+      confirmed: true,
+      override_reason: reason
+    };
+    document.getElementById('method-override').style.display = 'none';
+    methodBanner.className = 'banner ok';
+    methodBanner.textContent = `Метод зафиксирован: ${METHOD_QUESTIONNAIRE.methods[altKey].label} `
+      + '(вместо рекомендованного, причина записана).';
+  });
+
+  const innFileInput = document.getElementById('inn_file');  const innPreview = document.getElementById('inn_preview');
   // The uploaded file is kept as raw bytes and handed back to the agent
   // byte-for-byte. Reading it as UTF-8 text and re-serialising the string
   // corrupted every cp1251 file Excel produces (the "ИНН" header came back
@@ -305,6 +582,18 @@
     const recipientsRaw = document.getElementById('recipient_emails').value.trim();
     const customMetricRaw = document.getElementById('custom_metric_text').value.trim();
 
+    // Matches skill/validation._check_split_method: a questionnaire that was
+    // started but never confirmed is a half-finished intake, and the skill
+    // will refuse the request -- so refuse it here, where it can still be
+    // fixed in one click, rather than after the files have been handed over.
+    if (!methodDecision) {
+      banner.className = 'banner error';
+      banner.textContent = 'Шаг 6: подберите метод разделения и подтвердите его описание. '
+        + 'От метода зависит, нужен ли пилоту ребейз — агент не станет угадывать это за вас.';
+      document.getElementById('method-questions').scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
     const request = {
       pilot_name: document.getElementById('pilot_name').value.trim(),
       valid_from: validFrom,
@@ -317,7 +606,8 @@
       recalculation_frequency: document.getElementById('recalculation_frequency').value,
       grouping_metrics: checkedCodes('grouping'),
       financial_effect_articles: checkedCodes('financial'),
-      custom_metric_requests: customMetricRaw ? [customMetricRaw] : []
+      custom_metric_requests: customMetricRaw ? [customMetricRaw] : [],
+      split_method: methodDecision
     };
 
     const innOutName = 'inn_list' + innFileExt;

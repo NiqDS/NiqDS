@@ -18,9 +18,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST_PATH = ROOT / "metric_scripts" / "manifest.json"
 FILTERS_PATH = ROOT / "metric_scripts" / "filters.json"
+QUESTIONNAIRE_PATH = ROOT / "skill" / "split_method_questionnaire.json"
 
 
-def _inject(template: str, marker: str, payload: list) -> str:
+def _inject(template: str, marker: str, payload) -> str:
     start_marker = f"/*__{marker}__*/"
     end_marker = f"/*__END_{marker}__*/"
     start = template.index(start_marker) + len(start_marker)
@@ -57,17 +58,34 @@ def load_filters() -> list[dict]:
     ]
 
 
+def load_questionnaire() -> dict:
+    """The split-method questionnaire, straight from the skill's own copy.
+
+    Injected whole rather than per-field: the form renders the questions,
+    resolves the rules and shows the method outlines, so every one of those
+    has to be the same text the skill will act on. `_comment` is dropped --
+    it is a note to whoever edits the file, not form content.
+    """
+    raw = json.loads(QUESTIONNAIRE_PATH.read_text(encoding="utf-8"))
+    return {k: v for k, v in raw.items() if not k.startswith("_")}
+
+
 def main() -> None:
     metrics = load_metrics()
     filters = load_filters()
+    questionnaire = load_questionnaire()
 
     intake = _inject(
         (ROOT / "web" / "_template.html").read_text(encoding="utf-8"),
         "METRICS_CATALOG",
         metrics,
     )
+    intake = _inject(intake, "METHOD_QUESTIONNAIRE", questionnaire)
     (ROOT / "web" / "index.html").write_text(intake, encoding="utf-8")
-    print(f"wrote {ROOT / 'web' / 'index.html'} ({len(metrics)} metrics)")
+    print(
+        f"wrote {ROOT / 'web' / 'index.html'} "
+        f"({len(metrics)} metrics, {len(questionnaire['questions'])} method questions)"
+    )
 
     calc = (ROOT / "web" / "_calc_template.html").read_text(encoding="utf-8")
     calc = _inject(calc, "METRICS_CATALOG", metrics)

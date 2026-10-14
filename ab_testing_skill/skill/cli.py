@@ -4,6 +4,10 @@
     python -m skill.cli run --request request.json --inn-file inns.csv --drop-invalid-inns
     python -m skill.cli recalc --pilot-folder data/pilots/<slug>
     python -m skill.cli metrics [--usable-as grouping|financial_effect]
+    python -m skill.cli advise-method                    # interactive questionnaire
+    python -m skill.cli advise-method --answers a.json --request request.json --json
+    python -m skill.cli advise-method --describe cascade_rebase
+    python -m skill.cli rebase-due                       # pilots owing a rebase today
 
 `run` is what web/index.html's exported bundle is meant to be fed into;
 `recalc` is what a scheduler calls on the configured cadence (spec step 6).
@@ -28,10 +32,12 @@ from pathlib import Path
 
 from .calc_pipeline import CalculationRejected, NoMetricsSelectedError, run_calculation
 from .config import default_config
+from . import method_advisor
 from .inn_utils import validate_file
 from .metrics.runner import MetricRunner
 from .models import CalculationRequest, PilotRequest
 from .monitoring import AlreadyCalculatedError, RecalculationNotDueError, run_recalculation
+from .registries import RebaseRemindersRegistry
 from .pipeline import (
     IntakeRejected,
     NoEligibleClientsError,
@@ -245,6 +251,147 @@ def _cmd_calc(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_advise_method(args: argparse.Namespace) -> int:
+    """The split-method questionnaire: ask, recommend, show, confirm.
+
+    Three shapes, because the caller might be a human at a terminal, a
+    GigaCode agent holding a conversation, or the web form's exported JSON:
+
+      --questions            -> the questions to ask, as JSON
+      --describe <method>    -> that method's outline, for the confirm step
+      --answers answers.json -> the recommendation + outline + the question
+                                to put to the user
+      (no flags)             -> interactive: asks the questions on stdin
+
+    Nothing here writes anything. The decision only takes effect once it is
+    recorded in request.json and `run` is called, which is what forces the
+    user's confirmation to be explicit rather than implied by a dropdown.
+    """
+    if args.questions:
+        print(json.dumps(method_advisor.questions(), ensure_ascii=False, indent=2))
+        return 0
+
+    if args.describe:
+        recommendation = method_advisor.describe(args.describe)
+        if recommendation is None:
+            print(
+                json.dumps(
+                    {
+                        "status": "error",
+                        "detail": f"unknown method {args.describe!r}; known: "
+                        + ", ".join(sorted(method_advisor.methods())),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 1
+        if args.json:
+            print(json.dumps(recommendation.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            print(recommendation.as_text())
+        return 0
+
+    iterations = args.iterations
+    if args.request:
+        request = PilotRequest.from_dict(
+            json.loads(Path(args.request).read_text(encoding="utf-8"))
+        )
+        iterations = iterations or method_advisor.expected_iterations(
+            request.valid_from, request.valid_to, request.recalculation_frequency
+        )
+
+    if args.answers:
+        answers = json.loads(Path(args.answers).read_text(encoding="utf-8"))
+        answers = answers.get("answers", answers)
+    else:
+        answers = _ask_questionnaire_interactively()
+        if answers is None:
+            return 1
+
+    try:
+        recommendation = method_advisor.recommend(answers, iterations=iterations)
+    except method_advisor.UnknownAnswerError as exc:
+        print(json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False, indent=2))
+        return 1
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "answers": answers,
+                    "recommendation": recommendation.to_dict(),
+                    "record_into_request_json": {
+                        "split_method": {
+                            "answers": answers,
+                            "recommended": recommendation.method,
+                            "chosen": recommendation.method,
+                            "confirmed": False,
+                            "override_reason": "",
+                        }
+                    },
+                    "next_step": (
+                        "Прочитайте описание метода заказчику и спросите, похоже ли это на его "
+                        "пилот. Если да -- confirmed: true. Если нет -- покажите альтернативу "
+                        f"({recommendation.alternative}) через --describe, и при выборе укажите "
+                        "chosen + override_reason."
+                    ),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+    else:
+        print(recommendation.as_text())
+    return 0
+
+
+def _ask_questionnaire_interactively() -> dict[str, str] | None:
+    answers: dict[str, str] = {}
+    for question in method_advisor.questions():
+        print()
+        print(question["question"])
+        print(f"  ({question['why']})")
+        options = question["options"]
+        for i, option in enumerate(options, 1):
+            print(f"  {i}. {option['label']}")
+        while True:
+            raw = input("Ваш ответ (номер): ").strip()
+            if not raw.isdigit() or not 1 <= int(raw) <= len(options):
+                print(f"Введите число от 1 до {len(options)}.")
+                continue
+            answers[question["id"]] = options[int(raw) - 1]["id"]
+            break
+    print()
+    return answers
+
+
+def _cmd_rebase_due(args: argparse.Namespace) -> int:
+    """Pilots owing a rebase + comparability re-check as of a given date.
+
+    The note in each pilot folder tells whoever opens that folder; this
+    answers the question no folder can -- "what is due right now".
+    """
+    config = default_config()
+    as_of = date.fromisoformat(args.as_of) if args.as_of else date.today()
+    reminders = RebaseRemindersRegistry(config.registry.rebase_reminders_path)
+    due = reminders.due_on(as_of)
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "as_of": as_of.isoformat(),
+                "due_count": len(due),
+                "pilots": [dataclasses.asdict(r) for r in due],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
 def _cmd_filters(args: argparse.Namespace) -> int:
     config = default_config()
     runner = MetricRunner(config.metrics)
@@ -318,6 +465,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="Drop IDs that fail validation instead of rejecting the whole file.",
     )
     p_calc.set_defaults(func=_cmd_calc)
+
+    p_advise = sub.add_parser(
+        "advise-method",
+        help=(
+            "Split-method questionnaire: decide whether this pilot needs a cascade "
+            "split with resegmentation and a rebase, or a one-shot split"
+        ),
+    )
+    p_advise.add_argument(
+        "--questions", action="store_true", help="Print the questions as JSON and exit"
+    )
+    p_advise.add_argument(
+        "--answers", help="Path to a JSON file of {question_id: option_id} (or a request.json)"
+    )
+    p_advise.add_argument(
+        "--describe",
+        help="Print one method's outline (for the confirmation step / after an override)",
+    )
+    p_advise.add_argument(
+        "--request",
+        help="Pilot request JSON -- the pilot's term and cadence are read from it so a long "
+        "pilot triggers the comparability re-check without asking the user about it",
+    )
+    p_advise.add_argument(
+        "--iterations",
+        type=int,
+        help="Override the computed number of recalculation periods",
+    )
+    p_advise.add_argument("--json", action="store_true", help="Machine-readable output")
+    p_advise.set_defaults(func=_cmd_advise_method)
+
+    p_due = sub.add_parser(
+        "rebase-due", help="List pilots owing a rebase + comparability re-check"
+    )
+    p_due.add_argument("--as-of", help="YYYY-MM-DD, defaults to today")
+    p_due.set_defaults(func=_cmd_rebase_due)
 
     p_filters = sub.add_parser("filters", help="List filters available from the script bank")
     p_filters.add_argument("--metric", help="Only filters that apply to this metric code")

@@ -466,3 +466,123 @@ Two audit points were **not** actioned, deliberately:
   see "Why an HTML request-builder, not a hosted web app" above.
 - **Д5** — not reproducible here; it exists only in the renamed
   (`internal_skill`) fork, where the package rename was applied partially.
+
+## Choosing how to split: the method questionnaire
+
+Some pilots cannot be split once and for all. If clients are onboarded in
+waves, if the eligible list keeps growing, or if the pilot runs long enough
+that clients drift between segments, the list has to be split repeatedly —
+strata recomputed and CG/TG comparability re-checked each time (a cascade
+split with resegmentation and a rebase).
+
+An experienced analyst knows when that applies. The person filling in the
+intake form usually does not, and would never pick "cascade" from a
+dropdown. So the skill does not offer the choice — it asks five questions
+about the **rollout**, derives the method, shows the method's outline in
+plain language, and asks whether that description matches the pilot.
+
+### The flow
+
+```
+section 6 of web/index.html      ->  five questions, each with an "I don't know"
+   (or: skill.cli advise-method)      option
+                                 ->  recommended method + why + what will happen
+                                     each period + what it needs from you
+                                 ->  "Похоже это на ваш пилот?"
+         yes                     ->  method recorded, confirmed: true
+         no                      ->  the alternative's outline + a required
+                                     reason, then recorded as an override
+```
+
+```bash
+python -m skill.cli advise-method                      # interactive
+python -m skill.cli advise-method --questions          # the questions, as JSON
+python -m skill.cli advise-method --answers a.json --request request.json --json
+python -m skill.cli advise-method --describe cascade_rebase   # for the confirm step
+python -m skill.cli rebase-due                         # pilots owing a rebase today
+```
+
+### The three methods
+
+| Method | Membership | Each period | Chosen when |
+|---|---|---|---|
+| `single` | fixed at t0 | financial articles only | everyone starts together, list is closed, pilot is short |
+| `single_monitored` | **fixed at t0** | comparability re-checked; baseline rebased if it drifted | list is closed but the pilot is long, clients drop out, or their attributes move |
+| `cascade_rebase` | grows wave by wave | new wave assigned into the same strata + comparability re-checked on the full membership | clients are onboarded in waves, or the list will grow |
+
+The distinction between the last two is the one that matters:
+`single_monitored` **rebases the comparison baseline, never the
+membership**. Once a target-group client has had the treatment, moving them
+to control to restore balance contaminates the control group — so no method
+here ever re-assigns a client who is already in a group.
+
+### What the questions are, and what each one switches on
+
+| Question (about the rollout) | Switches on |
+|---|---|
+| Do all clients start on the same date, or in waves? | membership grows → cascade |
+| Will the list be added to after the start? | membership grows → cascade |
+| Can clients' turnover / size / ТБ / tenure change materially during the pilot? | strata drift → re-check |
+| Do you expect material attrition before the pilot ends? | attrition → re-check |
+| One treatment for the whole target group, or several variants? | a second-level split inside ЦГ (a modifier, not a different method) |
+
+Pilot length is **not** asked — the term and cadence are already on the
+form, so the number of recalculation periods is computed, and six or more
+triggers the re-check on its own.
+
+**"I don't know" leans toward the cascade method, deliberately.** The costs
+are not symmetric: picking "no rebase" for a pilot that needed one
+invalidates the result and cannot be repaired after the fact, while picking
+"rebase" for a pilot that did not need one costs one balance re-check per
+period that comes back "still comparable". Every unknown answer that moved
+the recommendation is listed back to the user so it can be resolved instead.
+
+### The confirmation is enforced, not cosmetic
+
+A request carrying an answered-but-unconfirmed questionnaire is **refused**
+at validation, before any side effect — it is a half-finished intake, not a
+default. A request with no questionnaire at all still runs (every
+`request.json` written before this feature keeps working) under the one-shot
+split, and the setup package says *"the questionnaire was not filled in"*
+rather than reporting it as a deliberate choice of "no rebase".
+Choosing the alternative over the recommendation requires a written reason,
+which lands in `pilot_meta.json` and in the pilot's note.
+
+### What a rebase-requiring pilot leaves behind
+
+1. `REBASE_REQUIRED.md` in the pilot folder — a checklist for whoever opens
+   that folder next period, in Russian, stating plainly that the two group
+   files are **not** the final membership.
+2. A row in `data/registry/rebase_reminders.csv` — because no folder can
+   answer "which pilots are due a rebase right now". That is what
+   `skill.cli rebase-due` reads.
+3. `rebase_required` / `homogeneity_recheck_required` in `pilot_meta.json`,
+   so a `recalc` started months later from a folder path alone knows it owes
+   a comparability check.
+4. The reminder in the body of the CG/TG delivery email.
+5. `homogeneity_checks.csv`, appended on every `recalc`: one row per article
+   per `report_date` with the SMD, whether it is within tolerance, and
+   `REBASE: пересчитать базу сравнения с этой даты` when it is not. The
+   point is to show **from which period** the comparison stopped holding,
+   not just that it does not hold now.
+
+### Not built yet: executing the cascade
+
+The questionnaire records the method and the skill now reminds, re-checks
+and reports. **Assigning a new wave into an existing pilot is not
+implemented yet** — today a wave means running the second batch and
+reconciling by hand. Two things in the current build have to be changed
+first, and both are load-bearing:
+
+- **`PilotAlreadyExistsError` (Д3)** refuses a re-run of the same pilot
+  folder. A cascade pilot deliberately returns to the same folder for wave
+  2, so it needs its own `add-wave` path — `--force` would overwrite wave 1.
+- **The master-status and overlap gates would block the pilot's own
+  members.** Intake marks target-group clients `Used`, and `Used` blocks
+  reuse; on wave 2 the pilot would reject its own wave-1 clients as
+  conflicts. Both gates need scoping to exclude the pilot being added to.
+
+The wave assignment itself is then a variant of `splitter.split()` that
+takes the existing CG/TG as fixed, builds strata over the new batch only,
+and fills the side that is behind first — which is what step 6 of the
+`cascade_rebase` outline promises the user.

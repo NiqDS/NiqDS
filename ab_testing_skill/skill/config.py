@@ -33,6 +33,9 @@ class RegistryConfig:
     duplicates_path: Path = PACKAGE_ROOT / "data" / "registry" / "inn_duplicates.csv"
     overlap_path: Path = PACKAGE_ROOT / "data" / "registry" / "metric_overlap.csv"
     metric_requests_path: Path = PACKAGE_ROOT / "data" / "registry" / "metric_requests.csv"
+    #: Pilots whose chosen split method requires a rebase + comparability
+    #: re-check each period. See registries.RebaseRemindersRegistry.
+    rebase_reminders_path: Path = PACKAGE_ROOT / "data" / "registry" / "rebase_reminders.csv"
 
 
 @dataclass

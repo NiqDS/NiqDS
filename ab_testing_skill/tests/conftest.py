@@ -23,7 +23,9 @@ def scratch_config(tmp_path):
     cfg.registry.duplicates_path = tmp_path / "inn_duplicates.csv"
     cfg.registry.overlap_path = tmp_path / "metric_overlap.csv"
     cfg.registry.metric_requests_path = tmp_path / "metric_requests.csv"
+    cfg.registry.rebase_reminders_path = tmp_path / "rebase_reminders.csv"
     cfg.storage.pilots_root = tmp_path / "pilots"
     cfg.storage.navigator_dropzone = tmp_path / "navigator_dropzone"
     cfg.master_status.path = tmp_path / "inn_master_status.csv"
+    cfg.calculation.results_root = tmp_path / "calculations"
     return cfg
