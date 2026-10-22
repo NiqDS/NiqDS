@@ -259,6 +259,8 @@ class SplitResult:
     #: (money levels, trends, and one level per categorical attribute).
     #: Attributes matched exactly by strata, and those balanced on as
     #: covariates instead because the cells would have been too small.
+    #: How the proportion was chosen, when it was chosen rather than fixed.
+    allocation: str = ""
     strata_metrics: list[str] = field(default_factory=list)
     covariate_only_metrics: list[str] = field(default_factory=list)
     covariates: list[str] = field(default_factory=list)

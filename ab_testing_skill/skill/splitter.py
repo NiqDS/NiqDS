@@ -19,6 +19,7 @@ import statistics
 from typing import Any
 
 from .config import SplitConfig
+from .allocation import plan_allocation
 from .features import asinh_trend, concentration
 from .models import SplitResult
 
@@ -441,6 +442,7 @@ def split(
     financial_values: dict[str, dict[str, Any]],
     config: SplitConfig,
     financial_matrix: dict[str, dict[str, list[float | None]]] | None = None,
+    seed_key: int | None = None,
 ) -> SplitResult:
     """Stratified assignment, then rerandomisation to pick the best draw.
 
@@ -469,7 +471,20 @@ def split(
         inn_list, grouping_values, config.min_clients_per_stratum
     )
     strata = _build_strata(inn_list, {k: grouping_values[k] for k in strata_keys})
-    base_seed = config.random_seed if config.random_seed is not None else random.randint(0, 2**31)
+
+    # Proportion: fixed, or chosen from what the list can actually resolve.
+    allocation = None
+    target_ratio = config.target_ratio
+    if target_ratio is None:
+        allocation = plan_allocation(len(inn_list), mde_sigma=config.mde_sigma)
+        target_ratio = allocation.treatment_share
+
+    if config.random_seed is not None:
+        base_seed = config.random_seed
+    elif seed_key is not None:
+        base_seed = seed_key          # derived from the pilot, see allocation.py
+    else:
+        base_seed = random.randint(0, 2**31)
 
     matrix, covariates, raw_columns = design_matrix(
         inn_list, grouping_values, financial_values, financial_matrix
@@ -487,7 +502,7 @@ def split(
     draws = _effective_draws(config, len(inn_list), len(matrix))
     while attempt < draws:
         seed = base_seed + attempt
-        candidate_control, candidate_target = _assign(strata, config.target_ratio, seed=seed)
+        candidate_control, candidate_target = _assign(strata, target_ratio, seed=seed)
         attempt += 1
 
         if not matrix:
@@ -534,8 +549,10 @@ def split(
 
     warnings = strata_warnings(
         strata, len(inn_list), len(control), len(target),
-        config.target_ratio, config.max_ratio_deviation,
+        target_ratio, config.max_ratio_deviation,
     )
+    if allocation is not None and allocation.underpowered:
+        warnings.append(f"пропорция: {allocation.reason}")
 
     # The honest report when no assignment could meet the bar. At N=200 over
     # a dozen covariates the search plateaus well above 0.1 no matter how
@@ -573,6 +590,7 @@ def split(
         warnings=warnings,
         strata_metrics=strata_keys,
         covariate_only_metrics=covariate_only,
+        allocation=allocation.describe() if allocation else "",
         covariates=covariates,
         worst_smd=None if best_worst == float("inf") else best_worst,
     )

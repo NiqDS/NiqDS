@@ -798,9 +798,56 @@ N=200 with 12 covariates no assignment reaches an SMD of 0.1 — the
 simulation plateaus at 0.22 — so small lists need *fewer* covariates, not
 better search.
 
-This skill's own reshuffle loop (`max_reshuffle_attempts = 25`, keep the
-best by worst SMD) is already a crude rerandomisation; section 6 of the
-review describes the three changes that would make it a principled one.
+This skill's own reshuffle loop was already a crude rerandomisation (draw,
+keep the best by worst SMD); section 6 of the review describes the three
+changes that made it a principled one, and all three are now in
+`skill/splitter.py`.
+
+## Related: head-to-head against the team's splitter
+
+`docs/ab_split_benchmark_ru.md` runs this splitter directly against
+`metric_calc_skill/skill/ab_test.py` — a second implementation by another
+committer, judged by **their** quality metric (`balance_check`, group skew
+in sigmas) rather than ours. The bench is `docs/analysis/ab_bench.py`:
+
+```bash
+AB_BENCH_THEIRS=/path/to/metric_calc_skill python3 -I docs/analysis/ab_bench.py
+```
+
+Their design deliberately has no stratification ("заказчик приносит
+произвольный список, признаков для стратов у нас на входе нет") but it
+*does* compute a pre-period baseline — after the split, to report the skew.
+The fairest comparison therefore gives both sides the same input (INNs plus
+ЧОД/ЧЭП, no attributes): the only difference is whether that baseline is
+used to choose the split or to describe it afterwards. On that footing the
+worst-case starting skew eats 69%/73%/80% of the detectable effect in their
+version against 25%/39%/68% in ours at N=200/500/2000 — **but by their own
+alarm threshold both versions pass every run**, and the gap closes as N
+grows. The value of covariates is on short lists, which is the typical ММБ
+pilot.
+
+Two of their decisions are better than ours were, and both were adopted
+into `skill/allocation.py` (30 tests in `tests/test_allocation.py`):
+
+- **Proportion chosen by power.** `SplitConfig.target_ratio = None` now
+  walks a 50/50…90/10 ladder and picks the largest target share whose
+  effective size `4·n_t·n_c/N` still clears what the requested MDE needs —
+  so more clients get the treatment when the list can afford it, and a list
+  that cannot even support 50/50 is split evenly and *said* to be
+  underpowered. The default stays 50/50 (maximum power, and what existing
+  pilots assume); the ladder is opt-in.
+- **Seed derived from the pilot.** It was the constant `42`, so two
+  different pilots over the same list got the *same* split.
+  `random_seed = None` now derives it from the pilot name and start date.
+  The documented flip side, which we repeat in the docstring: rename the
+  pilot or move its start date and the membership changes — measured at 29%
+  of clients. Do not touch those fields on a running pilot.
+
+The bench also exposed something about our own loop: it **stops at the
+threshold instead of minimising**. At the default 0.1 the first draw already
+passes, so 1 draw and 1000 draws give an identical split. That is correct
+behaviour, not a bug, but it means raising `max_reshuffle_attempts` buys
+nothing unless `max_standardized_diff` comes down with it.
 
 ## The rebuild: window, rerandomisation, analytics
 

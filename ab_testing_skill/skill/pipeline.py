@@ -18,6 +18,7 @@ from .connectors.dashboard_connector import DashboardConnector, LocalDropzoneDas
 from .connectors.email_connector import EmailConnector, LoggingEmailConnector, OutgoingEmail
 from .exporter import write_financial_effect_file, write_group_file
 from .inn_utils import validate_file
+from .allocation import seed_for_pilot
 from .features import cohorts_for, stratum_values
 from .method_advisor import PERIOD_DAYS, describe, method_label
 from .period import months_before
@@ -336,6 +337,7 @@ def run_intake(
     split_result = split(
         available, grouping_values, financial_values, config.split,
         financial_matrix=financial_matrix,
+        seed_key=seed_for_pilot(request.pilot_name, request.valid_from),
     )
 
     # The question the form has been asking and the skill has been ignoring:

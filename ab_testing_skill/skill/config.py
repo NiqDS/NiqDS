@@ -63,7 +63,18 @@ class MetricScriptConfig:
 class SplitConfig:
     """Stratified split + financial balance-check tunables."""
 
-    target_ratio: float = 0.5  # share assigned to Target group within each stratum
+    #: Share assigned to the target group. `None` means "choose it from the
+    #: power of the list" -- the largest share from the allocation ladder that
+    #: still resolves `mde_sigma`, which puts more clients under treatment
+    #: without losing the ability to see the effect. See skill/allocation.py.
+    target_ratio: float | None = 0.5
+    #: Effect size the allocation is planned against, in standard deviations.
+    #: Only consulted when `target_ratio` is None.
+    mde_sigma: float = 0.2
+    #: `None` derives the seed from the pilot's name and start date, so a
+    #: re-run of the same pilot reproduces the split while two different
+    #: pilots over the same client list do not. An explicit value overrides
+    #: both -- needed when a running pilot has to be re-split deliberately.
     random_seed: int | None = 42
     # After the stratified split, each financial metric's standardized mean
     # difference (SMD) between CG and TG must be <= this, or the splitter
