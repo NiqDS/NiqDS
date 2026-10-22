@@ -19,8 +19,11 @@ from pathlib import Path
 from .config import SkillConfig, default_config
 from .connectors.dashboard_connector import DashboardConnector, LocalDropzoneDashboardConnector
 from .exporter import read_codes_file, read_rows, write_financial_effect_file
+from metric_scripts.subscriptions import source_path
 from .analysis import HOMOGENEITY_FILENAME, NoHistoryError
 from .metrics.runner import MetricRunner
+from .run_log import RunLog
+from .staging import Staging
 from .splitter import _balance_report
 
 FREQUENCY_TO_TIMEDELTA = {
@@ -161,10 +164,31 @@ def run_recalculation(
     # Every block then held identical numbers and the pilot showed a flat
     # line forever. The period is part of the question, so it is asked.
     period = f"{as_of_date.year:04d}-{as_of_date.month:02d}"
-    series = runner.run_many_series(
-        meta["financial_effect_articles"], all_inns, as_of_date, months=[period]
-    )
-    financial_values = {code: value.scalar() for code, value in series.items()}
+
+    # One metric is minutes of query time and a pilot asks for several, so
+    # each lands on disk the moment it is computed. A failure on the last
+    # article no longer discards the earlier ones, and a rerun skips what is
+    # already there instead of paying for it twice.
+    staging = Staging(pilot_folder)
+    already = staging.completed()
+    financial_values: dict[str, dict] = {}
+    with RunLog(pilot_folder / "run_logs", f"recalc_{period}") as run_log:
+        run_log.record(f"[recalc] подписки: {source_path()}")
+        for code in meta["financial_effect_articles"]:
+            safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in code)[:80]
+            if safe in already:
+                run_log.record(f"[{code}] уже посчитана, беру из _staging")
+                financial_values[code] = {
+                    inn: months.get(period) for inn, months in staging.load(code).items()
+                }
+                continue
+            with run_log.stage(code):
+                result = runner.run_series(
+                    code, all_inns, as_of_date,
+                    filters=runner.filters_for(code, None), months=[period],
+                )
+                staging.save(code, [period], result.by_month)
+                financial_values[code] = result.scalar()
 
     path = write_financial_effect_file(
         pilot_folder, as_of_date, financial_values, group_of, mode=config.storage.recalc_mode
@@ -192,6 +216,7 @@ def run_recalculation(
     except NoHistoryError:
         pass
 
+    staging.clear()
     dashboard_connector.upload(meta["pilot_slug"], path)
     return path
 

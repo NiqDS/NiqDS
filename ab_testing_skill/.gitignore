@@ -8,3 +8,8 @@ data/pilots/*
 data/navigator_dropzone/
 data/calculations/
 data/registry/
+
+# real mart names: internal infrastructure detail, and this repo is public
+metric_scripts/subscriptions.local.json
+run_logs/
+**/_staging/

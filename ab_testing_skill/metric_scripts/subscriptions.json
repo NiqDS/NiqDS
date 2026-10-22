@@ -1,40 +1,68 @@
 {
-  "_comment": "Data-source subscriptions, keyed by short alias. Add a subscription your metric scripts need here (name + real Hive/Spark table it points to), save the file, then reference it from a script via metric_scripts.subscriptions.get_subscription('alias'). Table names below are placeholders -- replace with your real internal table names; do not commit real internal table names to a public repo.",
+  "_comment": [
+    "Подписки на витрины: алиас -> где лежит, как называются колонки, на что смотреть.",
+    "",
+    "ЗДЕСЬ ТОЛЬКО ЗАГЛУШКИ. Репозиторий публичный, а имя витрины — внутренняя",
+    "информация, которую нельзя вернуть обратно после пуша. Реальные имена кладите",
+    "в subscriptions.local.json рядом (он в .gitignore) или в файл, на который",
+    "указывает переменная окружения AB_SKILL_SUBSCRIPTIONS. Формат тот же, этот файл",
+    "служит образцом и списком того, что скрипту нужно знать.",
+    "",
+    "tables: несколько кандидатов — берётся первый доступный этой сессии (одна и та же",
+    "витрина выдаётся разным командам под разными схемами). columns: имена колонок по",
+    "ролям — одна и та же колонка в витрине-замене может называться иначе."
+  ],
 
-  "okved_reference": {
-    "table": "example_db.okved_reference",
-    "description": "Industry classification (OKVED) reference table, one row per INN."
+  "chod": {
+    "tables": ["example_db.chod_monthly", "example_db_alt.chod_monthly"],
+    "note": "ЧОД помесячно. ОБЯЗАТЕЛЬНЫЕ фильтры, иначе суммы задваиваются: period_type = 'M' И date_report = последний день месяца. Дата в витрине может быть строкой — разбирать по нескольким форматам, иначе to_date() вернёт NULL и фильтр отсечёт всё.",
+    "columns": {
+      "inn": "inn",
+      "date": "date_report",
+      "value": "c_sum",
+      "period_type": "period_type",
+      "product": "product",
+      "pl_type": "pl_type",
+      "segment": "segment"
+    },
+    "period_type_value": "M",
+    "pl_types": ["ACTIVE", "PASSIVE", "NKD", "ZP", "OTHER"]
   },
-  "opf_reference": {
-    "table": "example_db.opf_reference",
-    "description": "Legal form (OPF) reference table, one row per INN."
+
+  "chep": {
+    "tables": ["example_db.chep_precalc"],
+    "note": "ЧЭП. Фильтры period_type / last_day не применяются.",
+    "columns": {"inn": "inn", "date": "report_date", "value": "total_profit_amt"}
   },
-  "tb_reference": {
-    "table": "example_db.tb_reference",
-    "description": "Territorial bank (TB) assignment, one row per INN, partitioned by month."
+
+  "revenue": {
+    "tables": ["example_db.inn_metrics"],
+    "note": "Выручка — сумма нескольких metric_id за месяц. Проставьте свои в metric_ids.",
+    "columns": {"inn": "inn", "date": "partition_dt", "metric": "metric_id", "value": "value"},
+    "metric_ids": []
   },
-  "tenure_reference": {
-    "table": "example_db.tenure_reference",
-    "description": "Client tenure with the bank, one row per INN."
+
+  "turnover": {
+    "tables": ["example_db.turnover_monthly"],
+    "note": "Обороты: исходящие и входящие отдельными колонками.",
+    "columns": {"inn": "inn", "year": "year", "month": "month", "sum_dt": "sum_dt", "sum_kt": "sum_kt"}
   },
-  "chod_source": {
-    "table": "example_db.chod_monthly",
-    "description": "Net operating income (ЧОД) source table, one row per INN per month."
+
+  "sdo": {
+    "tables": ["example_db.passive_monthly"],
+    "note": "СДО (средний остаток). За месяц — значение на последнюю дату месяца.",
+    "columns": {"inn": "inn", "date": "date_report", "value": "amt_avg_rub_m", "period_type": "period_type"}
   },
-  "chep_source": {
-    "table": "example_db.chep_monthly",
-    "description": "Net economic profit (ЧЭП) source table, one row per INN per month."
+
+  "client_card": {
+    "tables": ["example_db.client_card", "example_db_alt.client_card"],
+    "note": "Карточка клиента: ТБ и ОКВЭД. Партиционирована помесячно — брать последнюю партицию не позже конца периода.",
+    "columns": {"inn": "inn", "tb": "tb_name", "okved": "okved_cd", "partition": "mon"}
   },
-  "turnover_source": {
-    "table": "example_db.turnover_monthly",
-    "description": "Account turnover source table, one row per INN per month."
-  },
-  "revenue_source": {
-    "table": "example_db.revenue_monthly",
-    "description": "Revenue source table, one row per INN per month."
-  },
-  "sdo_source": {
-    "table": "example_db.sdo_monthly",
-    "description": "СДО source table, one row per INN per month."
+
+  "client_pool": {
+    "tables": ["example_db.active_clients"],
+    "note": "Пул активных клиентов сегмента — нужен для подбора КГ вне присланного списка.",
+    "columns": {"inn": "inn", "date": "date_report", "active": "is_active", "segment": "segment"}
   }
 }
