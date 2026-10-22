@@ -766,3 +766,38 @@ Two consequences worth knowing:
   leading zeros. That difference produces wrong numbers rather than an
   error: a join silently misses a client, or matches the wrong one. Section
   6 of the review tabulates all five divergences.
+
+## Related: review of the production stratification notebook
+
+`docs/split_homogeneity_review_ru.md` reviews the notebook currently used to
+split pilots in production (12-variable composite stratum key, `rare_strats`
+fallback, `train_test_split(stratify=...)`, then KS + z + chi² homogeneity
+tests). `docs/analysis/` holds the three scripts the numbers come from.
+
+Three findings, all reproduced by simulation:
+
+1. **The stratification is a no-op.** The 12-variable cross product is ~56M
+   cells against an N in the thousands, so 100% of clients land in the
+   `rare_strats` bucket (99.7% even at N=20,000) and `stratify=` receives a
+   single class — a plain random split. The `rare_strats` line is what makes
+   it silent: without it sklearn would raise "the least populated class has
+   only 1 member" on the first run.
+2. **p-values cannot certify balance.** A fixed 0.10 SMD is flagged 9% of
+   the time at n=50 and 100% at n=50,000 — same imbalance, only n changes.
+   At n=100 a real 0.3 SMD passes as homogeneous 41% of the time. Effect
+   sizes with a threshold (SMD, Cramér's V) answer the question that is
+   actually being asked; p-values answer a different one.
+3. **18 uncorrected tests at α=0.05**: 55.9% of correctly randomised splits
+   fire at least one (theory says 60.3%). Re-drawing the seed until all 18
+   pass selects for luck, not balance.
+
+The recommended replacement is **rerandomisation** (Morgan & Rubin 2012) on
+a Mahalanobis criterion over numeric *and* one-hot categorical covariates,
+with randomization inference for the final analysis. Note the floor: at
+N=200 with 12 covariates no assignment reaches an SMD of 0.1 — the
+simulation plateaus at 0.22 — so small lists need *fewer* covariates, not
+better search.
+
+This skill's own reshuffle loop (`max_reshuffle_attempts = 25`, keep the
+best by worst SMD) is already a crude rerandomisation; section 6 of the
+review describes the three changes that would make it a principled one.
