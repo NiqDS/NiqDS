@@ -74,27 +74,57 @@ def test_the_spec_four_attributes_no_longer_produce_a_lopsided_split():
     assert 0.45 <= share <= 0.55, f"КГ={len(result.control)} / ЦГ={len(result.target)}"
 
 
-def test_a_continuous_metric_as_a_stratum_key_no_longer_empties_the_target_group():
+def test_a_continuous_metric_is_refused_as_a_stratum_key():
     """Money metrics are offered as grouping options in the form, and a raw
-    rouble value is unique per client -- 50 strata of 1, and the target
-    group came back empty while the balance check reported PASSED."""
+    rouble value is unique per client -- which used to give 50 strata of 1
+    and an empty target group, reported as PASSED.
+
+    It is no longer a question of recovering from that: an attribute whose
+    cells would hold fewer than `min_clients_per_stratum` never becomes a
+    stratum key at all. It is balanced on as a covariate instead, which is
+    what the rerandomisation criterion is for.
+    """
     inns = _sample_inns()
     result = split(inns, _values(["chod"], inns), _values(["chod"], inns), SplitConfig())
-    assert result.control and result.target
-    assert result.balanced is False, "a split over 50 singleton strata cannot be 'balanced'"
-    assert result.warnings
+    assert result.strata_metrics == [], "a per-client value cannot be a stratum key"
+    assert result.covariate_only_metrics == ["chod"], "but it must still be balanced on"
+    assert len(result.strata_summary) == 1
+    assert len(result.control) == len(result.target) == len(inns) // 2
+    assert result.balanced is True
+    assert result.warnings == []
 
 
 # --- the guards ------------------------------------------------------------
 
-def test_an_over_fine_stratification_is_reported_not_passed():
+def test_only_as_many_attributes_are_stratified_on_as_the_list_can_carry():
+    """Four attributes over 50 clients would be 47 cells, i.e. no freedom for
+    the search. Only the coarsest that fit the budget become strata; the
+    rest are balanced on as covariates."""
     inns = _sample_inns()
     result = split(
         inns, _values(["okved", "opf", "tb", "tenure"], inns), _values(["chod"], inns), SplitConfig()
     )
-    assert result.balanced is False
-    assert any("страт" in w for w in result.warnings)
-    assert any("одного клиента" in w for w in result.warnings)
+    assert result.strata_metrics, "something should still be matched exactly"
+    assert result.covariate_only_metrics, "and the rest handed to the criterion"
+    assert set(result.strata_metrics) | set(result.covariate_only_metrics) == {
+        "okved", "opf", "tb", "tenure"
+    }, "no attribute may be dropped entirely"
+    cells = len(result.strata_summary)
+    assert cells <= len(inns) // SplitConfig().min_clients_per_stratum
+    assert len(result.control) + len(result.target) == len(inns)
+
+
+def test_an_imbalance_the_search_cannot_fix_is_reported_not_hidden():
+    """50 clients over a dozen covariates cannot reach 0.1 on all of them.
+    Saying so is the point -- the old code returned the best of 25 draws in
+    silence."""
+    inns = _sample_inns()
+    result = split(
+        inns, _values(["okved", "opf", "tb", "tenure"], inns), _values(["chod"], inns), SplitConfig()
+    )
+    if not result.balanced:
+        assert any("баланс не достигнут" in w for w in result.warnings)
+        assert any("сокращайте набор признаков" in w for w in result.warnings)
 
 
 def test_a_coarse_stratification_still_passes_cleanly():

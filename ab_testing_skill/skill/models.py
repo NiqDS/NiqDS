@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
 
+from .period import DEFAULT_PRE_MONTHS
+
 
 class Role(str, Enum):
     CONTROL = "cg"
@@ -111,6 +113,11 @@ class PilotRequest:
     grouping_metrics: list[str]  # e.g. ["okved", "opf", "tb", "tenure"]
     financial_effect_articles: list[str]  # metric codes used for $ effect calc
     custom_metric_requests: list[str] = field(default_factory=list)
+    #: How many whole months of history the groups are judged on. A
+    #: balance check on a single date compares one month of ЧОД, which
+    #: swings by tens of percent for an ММБ client -- that is comparing
+    #: noise. Six months is the window the ЧОД methodology uses.
+    pre_months: int = DEFAULT_PRE_MONTHS
     #: Optional: absent on requests submitted before the questionnaire
     #: existed, and on hand-written ones. The pipeline then falls back to the
     #: one-shot split (the original behaviour) and says so in the package.
@@ -139,6 +146,7 @@ class PilotRequest:
             grouping_metrics=list(data.get("grouping_metrics") or []),
             financial_effect_articles=list(data.get("financial_effect_articles") or []),
             custom_metric_requests=list(data.get("custom_metric_requests") or []),
+            pre_months=int(data.get("pre_months") or DEFAULT_PRE_MONTHS),
             split_method=(
                 SplitMethodDecision.from_dict(data["split_method"])
                 if data.get("split_method")
@@ -165,6 +173,7 @@ class PilotRequest:
             "grouping_metrics": self.grouping_metrics,
             "financial_effect_articles": self.financial_effect_articles,
             "custom_metric_requests": self.custom_metric_requests,
+            "pre_months": self.pre_months,
             "split_method": self.split_method.to_dict() if self.split_method else None,
         }
 
@@ -246,6 +255,16 @@ class SplitResult:
     #: line up (over-fine strata, a realised ratio far from the requested
     #: one). Non-empty forces `balanced` to False.
     warnings: list[str] = field(default_factory=list)
+    #: Covariate columns the rerandomisation criterion was computed over
+    #: (money levels, trends, and one level per categorical attribute).
+    #: Attributes matched exactly by strata, and those balanced on as
+    #: covariates instead because the cells would have been too small.
+    strata_metrics: list[str] = field(default_factory=list)
+    covariate_only_metrics: list[str] = field(default_factory=list)
+    covariates: list[str] = field(default_factory=list)
+    #: Worst standardised mean difference across those covariates for the
+    #: chosen draw. None when there was nothing to balance against.
+    worst_smd: float | None = None
 
 
 @dataclass

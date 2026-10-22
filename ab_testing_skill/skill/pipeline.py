@@ -18,7 +18,9 @@ from .connectors.dashboard_connector import DashboardConnector, LocalDropzoneDas
 from .connectors.email_connector import EmailConnector, LoggingEmailConnector, OutgoingEmail
 from .exporter import write_financial_effect_file, write_group_file
 from .inn_utils import validate_file
+from .features import cohorts_for, stratum_values
 from .method_advisor import PERIOD_DAYS, describe, method_label
+from .period import months_before
 from .metrics.runner import MetricRunner
 from .models import OverlapFinding, PilotRequest, PilotResult, ValidationIssue
 from .registries import (
@@ -282,16 +284,46 @@ def run_intake(
         )
 
     # --- Step 4: compute grouping attributes, split, export, notify ------
+    # The window, not a single day. One month of ЧОД for an ММБ client swings
+    # by tens of percent, so a balance check on one date compares noise; every
+    # judgement about the groups is made over `pre_months` whole months.
     today = date.today()
-    grouping_values = runner.run_many(request.grouping_metrics, available, today)
-    financial_values = runner.run_many(request.financial_effect_articles, available, today)
+    window = months_before(request.valid_from, request.pre_months)
 
+    grouping_raw = runner.run_many(request.grouping_metrics, available, today)
+    financial_series = runner.run_many_series(
+        request.financial_effect_articles, available, today, months=window
+    )
+    financial_values = {code: series.scalar() for code, series in financial_series.items()}
+    financial_matrix = {code: series.matrix() for code, series in financial_series.items()}
+
+    # Continuous values can never be stratum keys -- see features.stratum_values.
+    value_types = {code: d.value_type for code, d in runner.manifest.items()}
+    grouping_values, grouping_notes = stratum_values(grouping_raw, value_types)
+
+    # The trajectory cohort of the first financial article joins the strata:
+    # two clients with the same average are not comparable if one is growing
+    # and the other collapsing, and a check on means can never say so.
+    cohort_metric = request.financial_effect_articles[0] if request.financial_effect_articles else None
+    if cohort_metric and not financial_series[cohort_metric].is_flat:
+        cohorts = cohorts_for(financial_matrix[cohort_metric])
+        grouping_values[f"{cohort_metric}_тренд"] = cohorts
+        grouping_notes.append(
+            f"{cohort_metric}: добавлена когорта по траектории за {len(window)} мес. "
+            f"({len(set(cohorts.values()))} значений)"
+        )
+
+    # Coverage counts clients the source actually knew about. `None` means
+    # absent from the mart; a real zero is a value and is not counted here.
     coverage = {
         metric: sum(1 for inn in available if per_inn.get(inn) is not None)
-        for metric, per_inn in {**grouping_values, **financial_values}.items()
+        for metric, per_inn in {**grouping_raw, **financial_values}.items()
     }
 
-    split_result = split(available, grouping_values, financial_values, config.split)
+    split_result = split(
+        available, grouping_values, financial_values, config.split,
+        financial_matrix=financial_matrix,
+    )
 
     control_path = write_group_file(pilot_folder, "control_group", split_result.control)
     target_path = write_group_file(pilot_folder, "target_group", split_result.target)

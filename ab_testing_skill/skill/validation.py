@@ -114,6 +114,22 @@ def validate_pilot_request(request, known_metrics: set[str] | None = None) -> No
                 RequestIssue("expected_effect_pct", f"must be positive, got {effect}")
             )
 
+    pre_months = getattr(request, "pre_months", 6)
+    try:
+        pre_months = int(pre_months)
+    except (TypeError, ValueError):
+        issues.append(RequestIssue("pre_months", "must be a whole number of months"))
+    else:
+        if not 1 <= pre_months <= 36:
+            issues.append(
+                RequestIssue(
+                    "pre_months",
+                    f"{pre_months} is outside 1..36. The groups are judged on this many whole "
+                    "months of history; one month is comparing noise, and more than three years "
+                    "of history is rarely loaded in the marts.",
+                )
+            )
+
     _check_split_method(getattr(request, "split_method", None), issues)
 
     if issues:

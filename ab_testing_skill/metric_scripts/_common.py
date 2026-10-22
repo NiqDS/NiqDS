@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import os
+import zlib
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
@@ -77,6 +78,69 @@ def refuse_demo_reference_in_production() -> None:
         "the script to the real mart, or set AB_SKILL_ALLOW_DEMO_DATA=true for a "
         "deliberate dry run."
     )
+
+
+def monthly_series(
+    inn_list: list[str],
+    column: str,
+    months: list[str],
+    filters: dict[str, Any] | None = None,
+    cast: Callable[[str], Any] = float,
+) -> dict[str, Any]:
+    """Demo money metric as a monthly series: `{инн: {месяц: значение}}`.
+
+    The bundled reference table holds one number per client, but everything
+    the skill judges groups on -- trend, cohort, balance over a window --
+    needs a history. So the single number is expanded into a plausible one,
+    deterministically from the client's own ИНН: the same client always gets
+    the same shape, which is what makes the tests and the demo reproducible.
+
+    Three properties matter and are deliberate:
+
+    * **The mean over the window equals the reference value exactly.** The
+      scalar view of a series is its mean, so every caller that asked for
+      one number before this existed still gets the same number.
+    * **Shapes vary**: growing, declining, irregular (whole months at zero)
+      and flat clients all occur, so the cohort rules in `skill/features.py`
+      have something real to separate.
+    * **Absent stays absent.** A client the reference table does not know
+      returns None, not a series of zeros -- see `MetricSeries`.
+    """
+    base = lookup_column(inn_list, column=column, cast=cast, filters=filters)
+    out: dict[str, Any] = {}
+    for inn, value in base.items():
+        if value is None:
+            out[inn] = None
+            continue
+        out[inn] = _expand_to_months(str(inn), column, float(value), months)
+    return out
+
+
+def _expand_to_months(inn: str, column: str, base: float, months: list[str]) -> dict[str, float]:
+    if not months:
+        return {}
+    seed = zlib.crc32(f"{inn}:{column}".encode("utf-8"))
+    profile = seed % 100
+    n = len(months)
+
+    if profile < 15:        # growing
+        shape = [(1.0 + 0.09 * i) for i in range(n)]
+    elif profile < 30:      # declining
+        shape = [(1.0 - 0.07 * i) for i in range(n)]
+    elif profile < 42:      # irregular: whole months with nothing
+        shape = [0.0 if (seed >> i) & 1 else 1.0 for i in range(n)]
+        if not any(shape):  # never leave it entirely empty
+            shape[-1] = 1.0
+    else:                   # flat, with month-to-month noise
+        shape = [1.0 + 0.12 * (((seed >> (i * 3)) % 7) - 3) / 3 for i in range(n)]
+
+    # deterministic jitter, then rescale so the window mean is exactly `base`
+    shape = [max(s, 0.0) * (1.0 + 0.05 * (((seed >> (i * 5)) % 5) - 2) / 2) for i, s in enumerate(shape)]
+    total = sum(shape)
+    if total == 0:
+        return {month: 0.0 for month in months}
+    factor = base * n / total
+    return {month: round(shape[i] * factor, 2) for i, month in enumerate(months)}
 
 
 def lookup_column(

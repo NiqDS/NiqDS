@@ -71,7 +71,22 @@ class SplitConfig:
     # threshold. See splitter._balance_report for why SMD and not a relative
     # difference of means.
     max_standardized_diff: float = 0.10
-    max_reshuffle_attempts: int = 25
+    #: Rerandomisation draws. Each one is a stratified assignment scored on
+    #: the standardised design matrix; the best is kept. Twenty-five (the
+    #: old value) left most of the available balance on the table for an
+    #: operation that costs microseconds.
+    max_reshuffle_attempts: int = 1000
+    #: Work budget for the search, in column-elements. The cost of a draw is
+    #: covariates x clients, so a large list would otherwise make 1000 draws
+    #: slow; the effective number of draws is cut to fit this and reported.
+    #: Large lists need fewer draws anyway -- balance comes easier with n.
+    max_search_cells: int = 3_000_000
+    #: Attributes are taken into the strata only while cells hold at least
+    #: this many clients. A cell of one cannot be shuffled, so beyond this
+    #: point stratifying removes freedom from the rerandomisation without
+    #: buying any matching -- the remaining attributes are balanced on as
+    #: covariates instead. See splitter.choose_strata_keys.
+    min_clients_per_stratum: int = 10
     #: How far the realised ЦГ share may sit from `target_ratio` before the
     #: split is reported as not balanced. Group means can line up while the
     #: groups are wildly different sizes (a 47/3 split passed an SMD check

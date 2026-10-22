@@ -42,13 +42,99 @@ def script_accepts_filters(run_fn) -> bool:
     Lets one script bank hold both filter-aware scripts and older ones
     that predate the argument, instead of forcing a big-bang migration.
     """
+    return script_accepts(run_fn, "filters")
+
+
+def script_accepts(run_fn, name: str) -> bool:
     try:
         signature = inspect.signature(run_fn)
     except (TypeError, ValueError):  # pragma: no cover - builtins/C callables
         return False
-    if "filters" in signature.parameters:
+    if name in signature.parameters:
         return True
     return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in signature.parameters.values())
+
+
+@dataclass
+class MetricSeries:
+    """A metric's answer as a monthly series, plus who the source knew about.
+
+    The distinction this type exists for: **absent is not zero.** A client
+    with no row in the mart and a client whose income was zero are different
+    facts, and collapsing both to `None` (which is what the skill used to do)
+    makes a data-supply problem look like a business one. Here, a client the
+    source never returned has no entry in `by_month` at all; a client it
+    returned with nothing earned has `0.0`.
+
+    `coverage` counts the first kind, so "ran fine, every column blank" stops
+    being a silent success.
+    """
+
+    code: str
+    months: list[str]
+    by_month: dict[str, dict[str, Any]]
+    #: True when the script returned one number per client rather than a
+    #: series. The value is carried on the last month of the window and
+    #: `matrix()` repeats it -- a flat answer has no history, and inventing
+    #: a trend from it would be worse than having none.
+    is_flat: bool = False
+
+    @staticmethod
+    def from_script_output(code: str, raw: Any, months: list[str]) -> "MetricSeries":
+        if not isinstance(raw, dict):
+            raise TypeError(
+                f"metric '{code}' returned {type(raw).__name__}, expected a dict of "
+                "{инн: значение} or {инн: {месяц: значение}}"
+            )
+        by_month: dict[str, dict[str, Any]] = {}
+        flat = True
+        for inn, value in raw.items():
+            if isinstance(value, dict):
+                flat = False
+                # keep only months we asked for; a script returning extra
+                # months is not an error, but they are not part of the window
+                kept = {m: v for m, v in value.items() if m in months}
+                if kept:
+                    by_month[str(inn)] = kept
+            elif value is not None:
+                by_month[str(inn)] = {months[-1]: value}
+            # value is None -> the source did not know this client: no entry
+        return MetricSeries(code=code, months=list(months), by_month=by_month, is_flat=flat)
+
+    def present(self) -> set[str]:
+        """Clients the source actually returned something for."""
+        return set(self.by_month)
+
+    def scalar(self, how: str = "mean") -> dict[str, Any]:
+        """One value per client: the mean over the window for numbers, the
+        latest known value for anything else (an attribute like ОКВЭД does
+        not average)."""
+        result: dict[str, Any] = {}
+        for inn, series in self.by_month.items():
+            values = [series[m] for m in self.months if m in series and series[m] is not None]
+            if not values:
+                result[inn] = None
+                continue
+            if how == "last" or not all(isinstance(v, (int, float)) for v in values):
+                result[inn] = values[-1]
+            else:
+                result[inn] = sum(values) / len(values)
+        return result
+
+    def matrix(self) -> dict[str, list[float | None]]:
+        """Per client, one entry per month of the window, in order.
+
+        Months the source had no row for come back as None rather than 0.0,
+        for the same reason `present()` exists.
+        """
+        out: dict[str, list[float | None]] = {}
+        for inn, series in self.by_month.items():
+            if self.is_flat:
+                value = series.get(self.months[-1])
+                out[inn] = [value] * len(self.months)
+            else:
+                out[inn] = [series.get(m) for m in self.months]
+        return out
 
 
 def get_spark_session():
@@ -132,6 +218,29 @@ class MetricRunner:
         as_of_date: date,
         filters: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """One value per client -- the scalar view, unchanged.
+
+        A script returning a monthly series is reduced to the mean over the
+        window, which is what a single-number caller wants anyway.
+        """
+        return self.run_series(metric_code, inn_list, as_of_date, filters=filters).scalar()
+
+    def run_series(
+        self,
+        metric_code: str,
+        inn_list: list[str],
+        as_of_date: date,
+        filters: dict[str, Any] | None = None,
+        months: list[str] | None = None,
+    ) -> MetricSeries:
+        """The full monthly view: `{инн: {месяц: значение}}` plus who was found.
+
+        `months` is the window to ask for. Scripts that accept a `months`
+        argument get it; older ones are called with `as_of_date` alone and
+        their flat answer is carried as a single-month series (see
+        `MetricSeries.is_flat` -- a flat answer carries no history, and the
+        skill must not invent one).
+        """
         if metric_code not in self.manifest:
             raise KeyError(
                 f"unknown metric '{metric_code}' -- not present in {self.config.manifest_path}. "
@@ -150,21 +259,29 @@ class MetricRunner:
 
         refuse_demo_script_in_production(metric_code, definition.script, module, self.config)
 
-        # The script contract is run(inn_list, as_of_date, spark=None, filters=None),
-        # but `filters` was added later, so scripts predating it are still supported:
-        # they're called with the old 3-argument form. What is NOT allowed is silently
-        # dropping requested filters -- that would return unfiltered numbers that look
-        # perfectly valid, so it's a hard error instead.
+        window = list(months) if months else [f"{as_of_date.year:04d}-{as_of_date.month:02d}"]
+
+        # The script contract grew twice: `filters` first, then `months`. Both
+        # are passed only to scripts whose signature accepts them, so one bank
+        # can hold scripts of all three generations. What is NOT allowed is
+        # silently dropping something that was requested -- unfiltered numbers,
+        # or a one-month answer presented as a six-month window, both look
+        # perfectly valid and are both wrong.
+        kwargs: dict[str, Any] = {"spark": spark}
         if script_accepts_filters(module.run):
-            return module.run(inn_list, as_of_date, spark=spark, filters=filters)
-        if filters:
+            kwargs["filters"] = filters
+        elif filters:
             raise TypeError(
                 f"metric script {definition.script} does not accept a `filters` argument, "
                 f"but filters {sorted(filters)} were requested for metric '{metric_code}'. "
                 "Add `filters: dict | None = None` to its run() signature and apply them "
                 "inside the query -- running it unfiltered would silently return the wrong numbers."
             )
-        return module.run(inn_list, as_of_date, spark=spark)
+        if script_accepts(module.run, "months"):
+            kwargs["months"] = window
+
+        raw = module.run(inn_list, as_of_date, **kwargs)
+        return MetricSeries.from_script_output(metric_code, raw, window)
 
     def run_many(
         self,
@@ -175,6 +292,26 @@ class MetricRunner:
     ) -> dict[str, dict[str, Any]]:
         return {
             code: self.run(code, inn_list, as_of_date, filters=self.filters_for(code, filters))
+            for code in metric_codes
+        }
+
+    def run_many_series(
+        self,
+        metric_codes: list[str],
+        inn_list: list[str],
+        as_of_date: date,
+        filters: dict[str, Any] | None = None,
+        months: list[str] | None = None,
+    ) -> dict[str, MetricSeries]:
+        """The monthly view of several metrics over one window."""
+        return {
+            code: self.run_series(
+                code,
+                inn_list,
+                as_of_date,
+                filters=self.filters_for(code, filters),
+                months=months,
+            )
             for code in metric_codes
         }
 

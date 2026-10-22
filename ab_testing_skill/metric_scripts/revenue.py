@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from metric_scripts._common import lookup_column
+from metric_scripts._common import lookup_column, monthly_series
 
 
 #: This script is the bundled demo stub: it reads
@@ -26,5 +26,9 @@ def run(
     as_of_date: date,
     spark: Any = None,
     filters: dict[str, Any] | None = None,
+    months: list[str] | None = None,
 ) -> dict[str, Any]:
+    """Monthly series over `months`, or one value when no window is asked for."""
+    if months:
+        return monthly_series(inn_list, column="revenue", months=months, filters=filters)
     return lookup_column(inn_list, column="revenue", cast=float, filters=filters)
