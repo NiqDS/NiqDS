@@ -23,16 +23,19 @@ INNs remain, instead of failing the submission outright.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import dataclasses
+import io
 import json
+import os
 import sys
 from datetime import date
 from pathlib import Path
 
 from .calc_pipeline import CalculationRejected, NoMetricsSelectedError, run_calculation
 from .config import default_config
-from . import method_advisor
+from . import method_advisor, output
 from .inn_utils import validate_file
 from .metrics.runner import MetricRunner
 from .models import CalculationRequest, PilotRequest
@@ -422,10 +425,30 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m skill.cli")
+    # --output is declared once and attached to every subparser as well as the
+    # top level, so both `cli --output text run ...` and `cli run --output text`
+    # work -- an agent/tool wrapper should not have to care which. SUPPRESS so
+    # the subparser's copy does not overwrite a value given before the
+    # subcommand with its own default.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
+        "--output",
+        choices=["json", "text"],
+        default=argparse.SUPPRESS,
+        help=(
+            "json (default): one machine-readable document per command, the contract a "
+            "tool wrapper parses. text: the same payload rendered for a person or for an "
+            "agent to relay -- labelled facts, file paths instead of inlined lists, and "
+            "an explicit next step. Set AB_SKILL_OUTPUT to change the default."
+        ),
+    )
+
+    parser = argparse.ArgumentParser(prog="python -m skill.cli", parents=[common])
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_run = sub.add_parser("run", help="Run intake steps 1-5 for a new pilot request")
+    p_run = sub.add_parser(
+        "run", help="Run intake steps 1-5 for a new pilot request", parents=[common]
+    )
     p_run.add_argument("--request", required=True, help="Path to request JSON (see web/index.html)")
     p_run.add_argument("--inn-file", required=True, help="Path to the submitted INN list CSV")
     p_run.add_argument(
@@ -444,7 +467,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_run.set_defaults(func=_cmd_run)
 
-    p_recalc = sub.add_parser("recalc", help="Run one recalculation pass for an existing pilot")
+    p_recalc = sub.add_parser(
+        "recalc", help="Run one recalculation pass for an existing pilot", parents=[common]
+    )
     p_recalc.add_argument("--pilot-folder", required=True)
     p_recalc.add_argument("--as-of", help="YYYY-MM-DD, defaults to today")
     p_recalc.add_argument(
@@ -455,7 +480,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_recalc.set_defaults(func=_cmd_recalc)
 
     p_calc = sub.add_parser(
-        "calc", help="Calculate selected metrics for an uploaded ID list (.xlsx or .csv)"
+        "calc",
+        help="Calculate selected metrics for an uploaded ID list (.xlsx or .csv)",
+        parents=[common],
     )
     p_calc.add_argument("--request", required=True, help="Path to calc request JSON (see web/metrics_calc.html)")
     p_calc.add_argument("--id-file", required=True, help="Path to the uploaded ID list (.xlsx or .csv)")
@@ -472,6 +499,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Split-method questionnaire: decide whether this pilot needs a cascade "
             "split with resegmentation and a rebase, or a one-shot split"
         ),
+        parents=[common],
     )
     p_advise.add_argument(
         "--questions", action="store_true", help="Print the questions as JSON and exit"
@@ -497,26 +525,55 @@ def build_parser() -> argparse.ArgumentParser:
     p_advise.set_defaults(func=_cmd_advise_method)
 
     p_due = sub.add_parser(
-        "rebase-due", help="List pilots owing a rebase + comparability re-check"
+        "rebase-due",
+        help="List pilots owing a rebase + comparability re-check",
+        parents=[common],
     )
     p_due.add_argument("--as-of", help="YYYY-MM-DD, defaults to today")
     p_due.set_defaults(func=_cmd_rebase_due)
 
-    p_filters = sub.add_parser("filters", help="List filters available from the script bank")
+    p_filters = sub.add_parser(
+        "filters", help="List filters available from the script bank", parents=[common]
+    )
     p_filters.add_argument("--metric", help="Only filters that apply to this metric code")
     p_filters.set_defaults(func=_cmd_filters)
 
-    p_metrics = sub.add_parser("metrics", help="List available metrics from the script bank catalog")
+    p_metrics = sub.add_parser(
+        "metrics",
+        help="List available metrics from the script bank catalog",
+        parents=[common],
+    )
     p_metrics.add_argument("--usable-as", choices=["grouping", "financial_effect"], default=None)
     p_metrics.set_defaults(func=_cmd_metrics)
 
     return parser
 
 
+def _output_format(args: argparse.Namespace) -> str:
+    """json unless asked otherwise, so the parseable contract is the default."""
+    chosen = getattr(args, "output", None)
+    if chosen:
+        return chosen
+    return os.environ.get("AB_SKILL_OUTPUT", "json").strip().lower() or "json"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    return args.func(args)
+
+    if _output_format(args) == "json":
+        return args.func(args)
+
+    # Every command already prints a JSON document (that is the documented
+    # contract), so text rendering is an adapter on the way out rather than a
+    # second code path through each command: whatever `--output json` would
+    # have produced is exactly what gets rendered, and a command added later
+    # is covered without being touched.
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        rc = args.func(args)
+    sys.stdout.write(output.render_stdout(buffer.getvalue()))
+    return rc
 
 
 if __name__ == "__main__":

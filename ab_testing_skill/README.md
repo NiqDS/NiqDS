@@ -586,3 +586,77 @@ The wave assignment itself is then a variant of `splitter.split()` that
 takes the existing CG/TG as fixed, builds strata over the new batch only,
 and fills the side that is behind first — which is what step 6 of the
 `cascade_rebase` outline promises the user.
+
+## CLI output: `--output json` (default) or `--output text`
+
+Every command prints **one machine-readable JSON document per command**.
+That is the contract a GigaCode tool wrapper (or any other agent harness)
+parses, and it is unchanged — `--output json` is the default and is
+byte-identical to what the CLI produced before this option existed.
+
+`--output text` renders the *same payload* for a person, or for an agent
+that has to relay the result to one:
+
+```bash
+python -m skill.cli run --output text --request request.json --inn-file inn_list.csv
+python -m skill.cli --output text rebase-due        # before or after the subcommand
+AB_SKILL_OUTPUT=text python -m skill.cli metrics    # or set the default
+```
+
+```
+ГОТОВО: КГ и ЦГ сформированы
+
+Пилот                    giga_style_demo (2026-10-22 .. 2027-04-22)
+Метод разделения         cascade_rebase
+Контрольная группа (КГ)  26 клиент(ов)
+Целевая группа (ЦГ)      24 клиент(ов)
+Баланс по фин. статьям   в пределах порога SMD <= 0.1 (попыток: 3, seed: 44)
+Заполненность источника  chod 50/50 (100%), okved 50/50 (100%)
+
+Файлы:
+  КГ                     .../control_group.xlsx
+  ЦГ                     .../target_group.xlsx
+  Фин. эффект            .../financial_effect.xlsx
+  Папка пилота           .../giga_style_demo_2026-10-22_2027-04-22
+
+ТРЕБУЕТСЯ РЕБЕЙЗ: это НЕ окончательный состав групп.
+
+СЛЕДУЮЩИЙ ШАГ:
+  - Передайте файлы КГ/ЦГ заказчику (столбец ИНН переименован в codes).
+  - Прочитайте REBASE_REQUIRED.md в папке пилота -- там чек-лист на каждый период.
+  - На следующем периоде: python -m skill.cli recalc --pilot-folder ...
+```
+
+Three rules the text renderer follows, and they are the reason it exists:
+
+1. **Paths, not payloads.** `run`'s JSON contains both group lists in full
+   — 50+ INNs plus the whole request echoed back. The text form names the
+   counts and points at the files. A test asserts no INN from the input
+   appears in the rendered output.
+2. **Every outcome ends in a next action.** A refusal says what to fix
+   *and* that nothing was written, so nobody goes looking for a half-built
+   pilot to clean up. A success names the exact next command.
+3. **Nothing is ever swallowed.** Commands that print two documents
+   (`run --drop-invalid-inns`) render both; output that is not JSON at all
+   (`advise-method` without `--json`) passes through verbatim; a payload
+   with no dedicated renderer degrades to labelled key/value lines rather
+   than disappearing.
+
+### Adapting it to a different CLI's conventions
+
+Text rendering is an adapter applied in `main()` on the way out, not a
+second code path through each command: commands still build and print the
+same payload, so a command added later is covered without being touched,
+and `--output text` cannot change what the skill actually did.
+
+`skill/output.py` is therefore the only file to change for a different
+house style — line prefixes, casing, status words, ordering, or a third
+format alongside `json`/`text`. The dispatch table at the bottom of that
+module maps each payload `status` to its renderer.
+
+**The wording here is a sensible default, not GigaCode's documented
+style** — the status words (`ГОТОВО` / `ОТКАЗ` / `ПРОПУЩЕНО`), the
+aligned label column and the `СЛЕДУЮЩИЙ ШАГ` block were chosen for an
+agent relaying to a Russian-speaking requester. Paste a sample of real
+GigaCode CLI output into `skill/output.py`'s docstring and the renderers
+can be matched to it exactly.
