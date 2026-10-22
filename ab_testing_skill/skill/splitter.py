@@ -31,11 +31,14 @@ from __future__ import annotations
 import math
 import random
 import statistics
+from dataclasses import dataclass, field
+from statistics import NormalDist
 from typing import Any
 
 from .config import SplitConfig
 from .allocation import plan_allocation
 from .features import asinh_trend, concentration
+from .matching import Pairing, assign_pairs, pair_clients
 from .models import SplitResult
 
 #: A categorical level smaller than this share of the list cannot be split
@@ -265,6 +268,214 @@ def _column_floor(column: list[float], n_control: int, n_target: int) -> float:
     return best_diff / sd
 
 
+def dummy_levels(
+    inn_list: list[str], values: dict[str, Any], max_columns: int | None = None
+) -> tuple[list[str], set[str], str]:
+    """(levels that get a column, levels merged into "прочие", the reference).
+
+    Shared by the design matrix and by whatever has to count columns before
+    building it, so the two can never disagree about how wide an attribute
+    is. A level too small to split evenly is not scored -- see the comment
+    in `design_matrix`.
+
+    `max_columns` coarsens the attribute instead of dropping it. When a
+    short list cannot afford ОКВЭД at full resolution, the alternative is
+    not "ignore ОКВЭД": the money criterion would then push the composition
+    around unopposed, which measures *worse* than a plain random split. The
+    alternative is the largest levels kept apart and the tail merged -- one
+    column still controls the dominant level, and that is most of the
+    protection for a fraction of the budget.
+    """
+    counts: dict[str, int] = {}
+    for inn in inn_list:
+        key = str(values.get(inn))
+        counts[key] = counts.get(key, 0) + 1
+    floor = max(2, math.ceil(RARE_LEVEL_SHARE * len(inn_list)))
+    common = sorted(level for level, n in counts.items() if n >= floor)
+    rare = {level for level, n in counts.items() if n < floor}
+
+    if max_columns is not None and len(common) > max_columns:
+        # Keep the biggest levels; the rest join "прочие". Ties broken by
+        # name so the design is reproducible.
+        common.sort(key=lambda level: (-counts[level], level))
+        rare = rare | set(common[max_columns:])
+        common = sorted(common[:max_columns])
+
+    buckets = list(common)
+    if rare and sum(counts[level] for level in rare) >= floor:
+        buckets.append(RARE_LEVEL)
+    if len(buckets) < 2:
+        return [], rare, ""
+    # Dummy coding: k levels need k-1 columns, and the dropped one is the
+    # smallest, so the reference category is the one carrying least weight.
+    reference = min(buckets, key=lambda level: counts.get(level, 0))
+    return [level for level in buckets if level != reference], rare, reference
+
+
+def covariate_budget(
+    n_control: int, n_target: int, threshold: float, draws: int
+) -> int:
+    """How many covariates a search of this size can actually balance.
+
+    The number is derivable, not a guess. Under random assignment a
+    standardised covariate's mean difference has standard deviation
+    sqrt(1/n_C + 1/n_T), so one covariate lands inside the threshold with
+    probability
+
+        p = 2 * Phi(threshold / sd) - 1,
+
+    and k covariates all land inside with roughly p^k. A search of `draws`
+    tries can be expected to find such an assignment only while p^k >= 1 /
+    draws, which gives
+
+        k <= ln(draws) / ln(1/p).
+
+    At 200 clients, a 0.1 threshold and 1000 draws that is **ten**
+    covariates. At 50 clients it is five. At 2000 it is past 250, i.e. no
+    practical limit -- which is the real shape of the problem: balance is
+    cheap on long lists and rationed on short ones.
+
+    Asking for more than the budget is not ambition, it is a guarantee of
+    failure plus a warning the analyst cannot act on. Our own benchmark
+    walked into it: 200 clients with ТБ and отрасль as covariates means
+    about thirty columns, so the money ended up *worse* balanced than with
+    no attributes at all, because the same 200 clients were spread over
+    thirty directions instead of two.
+
+    The estimate is deliberately conservative in one direction and
+    optimistic in another, and they partly cancel: dummy columns of one
+    attribute are negatively correlated, so passing is easier than p^k
+    suggests, while rerandomisation picks the best draw rather than the
+    first acceptable one, so it does better than the expected-draws bound.
+    """
+    if n_control <= 0 or n_target <= 0:
+        return 0
+    sd = math.sqrt(1.0 / n_control + 1.0 / n_target)
+    if sd <= 0:
+        return 10**6
+    p = 2 * NormalDist().cdf(threshold / sd) - 1
+    if p <= 0.0:
+        return 1
+    if p >= 1.0 - 1e-12:
+        return 10**6
+    return max(1, int(math.log(max(draws, 2)) / math.log(1.0 / p)))
+
+
+def explained_share(
+    values: dict[str, Any], attribute: dict[str, Any], inn_list: list[str]
+) -> float:
+    """Share of the metric's variance that sits between an attribute's levels.
+
+    Plain eta^2. It answers the only question worth asking when the budget
+    forces a choice: does knowing this attribute tell you anything about
+    the money? Balancing on a covariate unrelated to the outcome buys no
+    precision in the final comparison -- it only spends budget that a
+    predictive covariate could have used. This is the ranking behind
+    Morgan & Rubin's "tiers of importance", computed from the data instead
+    of asked of the user.
+    """
+    pairs = [
+        (str(attribute.get(inn)), _as_float(values.get(inn)))
+        for inn in inn_list
+        if values.get(inn) is not None
+    ]
+    if len(pairs) < 3:
+        return 0.0
+    overall = sum(value for _, value in pairs) / len(pairs)
+    total = sum((value - overall) ** 2 for _, value in pairs)
+    if total <= 0:
+        return 0.0
+    groups: dict[str, list[float]] = {}
+    for level, value in pairs:
+        groups.setdefault(level, []).append(value)
+    between = sum(
+        len(members) * (sum(members) / len(members) - overall) ** 2
+        for members in groups.values()
+    )
+    return min(1.0, between / total)
+
+
+def choose_covariates(
+    inn_list: list[str],
+    grouping_values: dict[str, dict[str, Any]],
+    financial_values: dict[str, dict[str, Any]],
+    strata_keys: list[str],
+    budget: int,
+) -> tuple[dict[str, int | None], list[str]]:
+    """How many columns each attribute gets, and which get nothing at all.
+
+    Three tiers, in order:
+
+    1. The money -- its levels and trends. Never trimmed: the pre-period of
+       the metric the pilot measures is the covariate that buys most of the
+       precision, and a split that ignores it is not worth making.
+    2. Attributes already matched exactly by the strata. They cost nothing:
+       the strata fix their composition, so their columns start balanced
+       and do not consume search budget. They enter at full resolution.
+    3. Everything else, ranked by how much of the money it explains.
+
+    Tier 3 is handed out in two passes, which is the part that matters on a
+    short list. First every attribute that can be afforded gets **one**
+    column -- its largest level against the rest -- because one column of
+    ОКВЭД is worth far more than the fifth column of ОПФ. Only then are the
+    leftovers spent widening the most predictive attributes back towards
+    full resolution. An attribute that cannot be afforded even at one
+    column is dropped and reported.
+
+    Returns {attribute: column allowance or None for full resolution} and
+    the list of dropped attributes.
+    """
+    allowance: dict[str, int | None] = {
+        code: None for code in grouping_values if code in strata_keys
+    }
+    rest = [code for code in grouping_values if code not in strata_keys]
+    width = {
+        code: len(dummy_levels(inn_list, grouping_values[code])[0]) for code in rest
+    }
+    ranked = sorted(
+        rest,
+        key=lambda code: (
+            -max(
+                (
+                    explained_share(values, grouping_values[code], inn_list)
+                    for values in financial_values.values()
+                ),
+                default=0.0,
+            ),
+            width[code],
+            code,
+        ),
+    )
+    # The money is tier 1 and is charged to the budget before anything else.
+    remaining = budget - len(financial_values)
+    dropped: list[str] = []
+
+    for code in ranked:
+        if width[code] == 0:
+            # One level after the rare merge: no column either way, so it is
+            # neither charged nor dropped. Listed so the report still says
+            # the criterion looked at it.
+            allowance[code] = None
+            continue
+        if remaining >= 1:
+            allowance[code] = 1
+            remaining -= 1
+        else:
+            dropped.append(code)
+
+    for code in ranked:
+        if remaining <= 0:
+            break
+        current = allowance.get(code)
+        if current is None or width[code] <= current:
+            continue
+        extra = min(remaining, width[code] - current)
+        allowance[code] = current + extra
+        remaining -= extra
+
+    return allowance, dropped
+
+
 def choose_strata_keys(
     inn_list: list[str],
     grouping_values: dict[str, dict[str, Any]],
@@ -309,6 +520,7 @@ def design_matrix(
     grouping_values: dict[str, dict[str, Any]],
     financial_values: dict[str, dict[str, Any]],
     financial_matrix: dict[str, dict[str, list[float | None]]] | None = None,
+    level_allowance: dict[str, int | None] | None = None,
 ) -> tuple[list[list[float]], list[str], list[list[float]]]:
     """Everything balance is judged on, as one standardised matrix.
 
@@ -334,10 +546,6 @@ def design_matrix(
         names.append(f"{code}:тренд")
 
     for code, values in sorted(grouping_values.items()):
-        counts: dict[str, int] = {}
-        for inn in inn_list:
-            counts[str(values.get(inn))] = counts.get(str(values.get(inn)), 0) + 1
-
         # Levels too small to split evenly are not scored. A level holding
         # three clients can only go 2/1, which is ~0.17 standardised whatever
         # the assignment -- scoring it would make every split on a long tail
@@ -345,24 +553,16 @@ def design_matrix(
         # into "прочие" when together they are big enough, and otherwise fall
         # into the reference level. The strata still keep every level apart;
         # only the criterion stops chasing what it cannot move.
-        floor = max(2, math.ceil(RARE_LEVEL_SHARE * len(inn_list)))
-        common = sorted(level for level, n in counts.items() if n >= floor)
-        rare = {level for level, n in counts.items() if n < floor}
-
-        buckets = list(common)
-        if rare and sum(counts[level] for level in rare) >= floor:
-            buckets.append(RARE_LEVEL)
-
-        # Dummy coding: k levels need k-1 columns. Including all k makes them
-        # sum to one, so the criterion would count the same imbalance twice;
-        # the dropped level is still controlled, implicitly, as the negative
-        # sum of the others.
-        if len(buckets) < 2:
-            continue
-        reference = min(buckets, key=lambda level: counts.get(level, 0))
-        for level in buckets:
-            if level == reference:
-                continue
+        #
+        # k levels get k-1 columns. Including all k makes them sum to one, so
+        # the criterion would count the same imbalance twice; the dropped
+        # level is still controlled, implicitly, as the negative sum of the
+        # others. `dummy_levels` picks both, and the budget counter uses the
+        # same function so the two cannot disagree.
+        levels, rare, _reference = dummy_levels(
+            inn_list, values, (level_allowance or {}).get(code)
+        )
+        for level in levels:
             columns.append([
                 1.0 if (
                     str(values.get(inn)) == level
@@ -560,6 +760,25 @@ def column_diffs(
     return out
 
 
+@dataclass
+class _Search:
+    """What one pass of the draw loop found."""
+
+    key: tuple[float, float] | None = None
+    score: float | None = None
+    worst: float = float("inf")
+    control: list[str] = field(default_factory=list)
+    target: list[str] = field(default_factory=list)
+    seed: int | None = None
+    attempts: int = 0
+    best_attempt: int = 0
+    ties: int = 0
+
+    @property
+    def accepted(self) -> bool:
+        return self.key is not None and self.key[0] <= 1e-9
+
+
 def split(
     inn_list: list[str],
     grouping_values: dict[str, dict[str, Any]],
@@ -622,6 +841,22 @@ def split(
         allocation = plan_allocation(len(inn_list), mde_sigma=config.mde_sigma)
         target_ratio = allocation.treatment_share
 
+    # What this list can afford to balance on. Short lists keep fewer
+    # covariates -- not as a precaution but as arithmetic: see
+    # `covariate_budget`.
+    planned_target = max(1, min(len(inn_list) - 1, round(len(inn_list) * target_ratio)))
+    budget = covariate_budget(
+        len(inn_list) - planned_target,
+        planned_target,
+        config.max_standardized_diff,
+        config.max_reshuffle_attempts,
+    )
+    allowance, dropped_metrics = choose_covariates(
+        inn_list, grouping_values, financial_values, strata_keys, budget
+    )
+    design_grouping = {code: grouping_values[code] for code in allowance}
+    covariate_only = [code for code in covariate_only if code in allowance]
+
     if config.random_seed is not None:
         base_seed = config.random_seed
     elif seed_key is not None:
@@ -630,22 +865,11 @@ def split(
         base_seed = random.randint(0, 2**31)
 
     matrix, covariates, raw_columns = design_matrix(
-        inn_list, grouping_values, financial_values, financial_matrix
+        inn_list, design_grouping, financial_values, financial_matrix, allowance
     )
     position = {inn: i for i, inn in enumerate(inn_list)}
 
-    control: list[str] = []
-    target: list[str] = []
     balance_report: dict[str, dict[str, float]] = {}
-    attempt = 0
-    seed_used = base_seed
-    best_key: tuple[float, float] | None = None
-    best_score: float | None = None
-    best_worst = float("inf")
-    best_attempt = 0
-    best_accepted = False
-    ties = 0                       # draws that scored exactly the kept draw's key
-    allowed: list[float] | None = None
 
     draws = _effective_draws(config, len(inn_list), len(matrix))
     # Building the precision matrix costs covariates^2 x clients once. On a
@@ -656,52 +880,102 @@ def split(
     if matrix and len(matrix) ** 2 * len(inn_list) <= config.max_search_cells:
         precision = precision_matrix(matrix)
 
-    while attempt < draws:
-        seed = base_seed + attempt
-        candidate_control, candidate_target = _assign(strata, target_ratio, seed=seed)
-        attempt += 1
+    allowed: list[float] | None = None
+    if matrix:
+        # Each column's own allowance, which the group sizes fix and the draw
+        # does not: the threshold, or the column's achievable floor where that
+        # is larger.
+        allowed = [
+            max(
+                config.max_standardized_diff,
+                _column_floor(raw, len(inn_list) - planned_target, planned_target),
+            )
+            for raw in raw_columns
+        ]
 
-        if not matrix:
-            control, target, seed_used = candidate_control, candidate_target, seed
-            break
+    def search(make_assignment) -> _Search:
+        """Spend the draw budget on one assignment scheme, keep the minimum."""
+        found = _Search()
+        while found.attempts < draws:
+            seed = base_seed + found.attempts
+            candidate_control, candidate_target = make_assignment(seed)
+            found.attempts += 1
 
-        if allowed is None:
-            # Each column's own allowance, which the group sizes fix and the
-            # draw does not: the threshold, or the column's achievable floor
-            # where that is larger. Computed once off the first draw.
-            allowed = [
-                max(
-                    config.max_standardized_diff,
-                    _column_floor(raw, len(candidate_control), len(candidate_target)),
+            if not matrix:
+                found.control, found.target, found.seed = (
+                    candidate_control, candidate_target, seed
                 )
-                for raw in raw_columns
-            ]
+                break
 
-        excess, score, worst = _draw_score(
-            matrix,
-            [position[inn] for inn in candidate_control],
-            [position[inn] for inn in candidate_target],
-            precision,
-            allowed,
-        )
-        key = (excess, score)
-        if best_key is None or key < best_key:
-            # Whatever was best before is strictly worse than this, so the
-            # count of beaten draws stays derivable from the tie count alone.
-            best_key, best_score, best_worst, best_attempt = key, score, worst, attempt
-            best_accepted = excess <= 1e-9
-            control, target, seed_used = candidate_control, candidate_target, seed
-        elif key == best_key:
-            ties += 1
+            excess, score, worst = _draw_score(
+                matrix,
+                [position[inn] for inn in candidate_control],
+                [position[inn] for inn in candidate_target],
+                precision,
+                allowed,
+            )
+            key = (excess, score)
+            if found.key is None or key < found.key:
+                # Whatever was best before is strictly worse than this, so the
+                # count of beaten draws stays derivable from the tie count.
+                found.key, found.score, found.worst = key, score, worst
+                found.best_attempt = found.attempts
+                found.control, found.target, found.seed = (
+                    candidate_control, candidate_target, seed
+                )
+            elif key == found.key:
+                found.ties += 1
 
-        # Early stop only once the split is already acceptable: while it is
-        # not, there is nothing to be patient about -- keep looking.
-        if (
-            config.search_patience
-            and best_accepted
-            and attempt - best_attempt >= config.search_patience
-        ):
-            break
+            # Early stop only once the split is already acceptable: while it
+            # is not, there is nothing to be patient about -- keep looking.
+            if (
+                config.search_patience
+                and found.accepted
+                and found.attempts - found.best_attempt >= config.search_patience
+            ):
+                break
+        return found
+
+    # A short list is paired first and randomised inside the pairs, because
+    # the search cannot find a good draw where few good draws exist. Pairs
+    # need an even split, so an allocation-ladder run keeps the search.
+    pairing = None
+    if (
+        config.pair_small_lists
+        and matrix
+        and 2 <= len(inn_list) <= config.pairing_max_clients
+        and abs(target_ratio - 0.5) < 1e-9
+    ):
+        pairing = pair_clients(inn_list, matrix, precision)
+        if not pairing.pairs:
+            pairing = None
+
+    stratified = None
+    if pairing is not None:
+        found = search(lambda seed: assign_pairs(pairing, seed))
+        # Pairs are kept whenever they clear the acceptance bar, even when a
+        # free search would shave a little more off the criterion. They are
+        # worth more than that margin: a paired sign test over them finds a
+        # 30% effect on 80 clients 83% of the time where the mean-based tests
+        # manage 30%, because it cannot be moved by one client with a
+        # thousand times the median turnover. Below the bar the trade is off
+        # and the free search is taken if it does better.
+        if not found.accepted:
+            stratified = search(lambda seed: _assign(strata, target_ratio, seed=seed))
+            if stratified.key is not None and (found.key is None or stratified.key < found.key):
+                found = stratified
+                pairing = None
+    else:
+        found = search(lambda seed: _assign(strata, target_ratio, seed=seed))
+
+    control, target = found.control, found.target
+    seed_used = found.seed if found.seed is not None else base_seed
+    attempt = found.attempts
+    best_attempt = found.best_attempt
+    best_score = found.score
+    best_worst = found.worst
+    best_key = found.key
+    ties = found.ties
 
     if control and target and financial_values:
         balance_report = _balance_report(
@@ -729,12 +1003,34 @@ def split(
     if not control or not target:
         raise DegenerateSplitError(len(control), len(target), len(strata), len(inn_list))
 
-    warnings = strata_warnings(
-        strata, len(inn_list), len(control), len(target),
-        target_ratio, config.max_ratio_deviation,
-    )
+    if pairing is not None:
+        # The singleton-strata warning is about an assignment method that is
+        # not in use here: pairs are built across strata, deliberately.
+        warnings = strata_warnings(
+            {(): inn_list}, len(inn_list), len(control), len(target),
+            target_ratio, config.max_ratio_deviation,
+        )
+        quality = pairing.quality_warning()
+        if quality:
+            warnings.append(quality)
+    else:
+        warnings = strata_warnings(
+            strata, len(inn_list), len(control), len(target),
+            target_ratio, config.max_ratio_deviation,
+        )
     if allocation is not None and allocation.underpowered:
         warnings.append(f"пропорция: {allocation.reason}")
+
+    if dropped_metrics:
+        warnings.append(
+            f"бюджет ковариат: на {len(inn_list)} клиентах при пороге "
+            f"{config.max_standardized_diff:g} и {config.max_reshuffle_attempts} "
+            f"розыгрышах выровнять можно около {budget} колонок, поэтому "
+            f"{', '.join(dropped_metrics)} в критерий не вошли — они меньше всего "
+            "объясняют разброс денег. Группы по ним не выравнивались: это не "
+            "ошибка, а то, что список такого размера физически не вытягивает. "
+            "Чтобы учесть их, нужен более длинный список, а не больше попыток."
+        )
 
     # The honest report when no assignment could meet the bar. At N=200 over
     # a dozen covariates the search plateaus well above 0.1 no matter how
@@ -746,9 +1042,11 @@ def split(
             f"баланс не достигнут за {attempt} розыгрыш(ей): худшая ковариата "
             f"«{name}» расходится на {diff:.3f} SMD при допустимых {allowed:.3f}"
             + (f" и ещё {len(unbalanced) - 1} ковариат(ы) вне допуска" if len(unbalanced) > 1 else "")
-            + f". На списке из {len(inn_list)} клиентов и {len(covariates)} ковариат порог "
-            "может быть недостижим в принципе — сокращайте набор признаков, а не "
-            "увеличивайте число попыток."
+            + f". На {len(inn_list)} клиентах и {len(covariates)} ковариатах порог "
+            f"может быть недостижим в принципе: бюджет такого списка — около "
+            f"{budget} колонок, и набор уже сокращён до этого размера автоматически. "
+            "Помогает более длинный список или меньше признаков в заявке; "
+            "увеличивать число попыток бесполезно."
         )
 
     concentration_warning = _concentration_warning(financial_values)
@@ -772,6 +1070,11 @@ def split(
         warnings=warnings,
         strata_metrics=strata_keys,
         covariate_only_metrics=covariate_only,
+        dropped_metrics=dropped_metrics,
+        covariate_budget=budget,
+        pairs=list(pairing.pairs) if pairing else [],
+        unmatched=list(pairing.unmatched) if pairing else [],
+        pair_quality=pairing.describe() if pairing else "",
         allocation=allocation.describe() if allocation else "",
         covariates=covariates,
         worst_smd=None if best_worst == float("inf") else best_worst,

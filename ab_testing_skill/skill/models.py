@@ -263,6 +263,21 @@ class SplitResult:
     allocation: str = ""
     strata_metrics: list[str] = field(default_factory=list)
     covariate_only_metrics: list[str] = field(default_factory=list)
+    #: Attributes the criterion had to give up on, because the list is too
+    #: short to balance that many columns -- see splitter.covariate_budget.
+    #: Always reported: the submitter asked for these.
+    dropped_metrics: list[str] = field(default_factory=list)
+    #: How many covariate columns this list could afford.
+    covariate_budget: int = 0
+    #: Matched pairs, when the list was short enough to pair before
+    #: randomising (skill/matching.py). Empty means the groups came from
+    #: the stratified search instead. The pairs are not decoration: the
+    #: comparison at the end of the pilot should be paired, and a client
+    #: who leaves takes their partner out of the paired analysis with them.
+    pairs: list[tuple[str, str]] = field(default_factory=list)
+    #: An odd list leaves one client without a partner.
+    unmatched: list[str] = field(default_factory=list)
+    #: How close the partners came out, in standardised units.
     covariates: list[str] = field(default_factory=list)
     #: Worst standardised mean difference across those covariates for the
     #: chosen draw. None when there was nothing to balance against.
@@ -284,6 +299,12 @@ class SplitResult:
     #: not, because once every covariate is comfortably inside the bar the
     #: criterion is free to trade one of them for gains elsewhere.
     search_excess: float = 0.0
+
+    pair_quality: str = ""
+
+    @property
+    def method(self) -> str:
+        return "matched_pairs" if self.pairs else "rerandomisation"
 
     def search_summary(self) -> str:
         return describe_search(

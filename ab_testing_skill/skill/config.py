@@ -106,6 +106,17 @@ class SplitConfig:
     #: buying any matching -- the remaining attributes are balanced on as
     #: covariates instead. See splitter.choose_strata_keys.
     min_clients_per_stratum: int = 10
+    #: Pair the clients first and randomise inside each pair, instead of
+    #: drawing stratified assignments and keeping the best. On a short list
+    #: this is the stronger design: rerandomisation can only pick among the
+    #: draws it happens to see, while pairing constructs a balanced one.
+    #: See skill/matching.py for what it costs.
+    pair_small_lists: bool = True
+    #: Above this many clients, plain rerandomisation is both cheaper and
+    #: good enough -- balance comes easily once n is large, and the pairs
+    #: would only constrain the analysis. The pairing itself is O(n^2 log n),
+    #: which is another reason not to run it on a long list.
+    pairing_max_clients: int = 200
     #: How far the realised ЦГ share may sit from `target_ratio` before the
     #: split is reported as not balanced. Group means can line up while the
     #: groups are wildly different sizes (a 47/3 split passed an SMD check

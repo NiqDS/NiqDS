@@ -38,6 +38,7 @@ from typing import Any
 from .exporter import read_rows, resolve_export_path
 from .statistics import (
     EffectEstimate,
+    paired_effect,
     permutation_two_sample,
     sign_test,
     smd,
@@ -127,6 +128,21 @@ class PilotAnalysis:
     top_contributors: list[tuple[str, float]]
     effect_concentration: float            # share of the target delta from the top 3
     baseline_smd: float | None
+    #: Paired analysis, when the split was made by matching clients into
+    #: pairs (short lists -- see skill/matching.py). On a heavy-tailed
+    #: metric this is where the power is: measured on 80 clients with a
+    #: 30% effect, Welch finds it 37% of the time, the paired t 30%, and
+    #: the paired sign test 83%. The mean-based tests drown in the tail --
+    #: one client with a thousand times the median turnover decides the
+    #: mean -- while the sign test only asks how often the treated client
+    #: beat their own partner.
+    paired: EffectEstimate | None = None
+    paired_sign_p: float | None = None
+    pairs_used: int = 0
+    #: Pairs that lost a partner to dropout. They are excluded from the
+    #: paired test, and on a short list that is worth stating: losing one
+    #: client costs two observations.
+    pairs_broken: int = 0
     comparability: list[dict[str, Any]] = field(default_factory=list)
     drifted_from: str | None = None
     dropouts: dict[str, int] = field(default_factory=dict)
@@ -161,6 +177,13 @@ class PilotAnalysis:
                 f"эффект {direction} и подтверждается перестановочным тестом, хотя "
                 "по средним незначим — похоже на небольшой эффект у многих клиентов"
             )
+        if self.paired_sign_p is not None and self.paired_sign_p < 0.05:
+            return (
+                f"эффект {direction} по парам: клиент из ЦГ чаще обходит своего "
+                "партнёра из КГ, чем наоборот (знаковый тест). По средним он "
+                "незначим — на коротком списке с тяжёлым хвостом это обычная "
+                "картина, и парный результат здесь надёжнее"
+            )
         return "эффект статистически не подтверждён"
 
     def to_dict(self) -> dict:
@@ -190,6 +213,18 @@ class PilotAnalysis:
                 "relative": self.effect_relative,
                 "permutation_p": self.permutation_p,
             },
+            "paired": (
+                {
+                    "pairs_used": self.pairs_used,
+                    "pairs_broken": self.pairs_broken,
+                    "mean": self.paired.mean,
+                    "low": self.paired.low,
+                    "high": self.paired.high,
+                    "p_value": self.paired.p_value,
+                    "sign_p": self.paired_sign_p,
+                }
+                if self.paired is not None else None
+            ),
             "cumulative_effect": self.cumulative_effect,
             "share_up": {"control": self.control_share_up, "target": self.target_share_up},
             "concentration": {
@@ -309,6 +344,9 @@ def analyse_pilot(pilot_folder: Path, article: str | None = None) -> PilotAnalys
 
     comparability, drifted_from = _comparability(pilot_folder)
     dropouts = _dropouts(by_client, group_of, periods)
+    paired, paired_sign_p, pairs_used, pairs_broken = _paired_analysis(
+        meta.get("pairs") or [], {t.inn: t.delta for t in trends}, group_of
+    )
 
     analysis = PilotAnalysis(
         pilot_name=meta.get("pilot_name", pilot_folder.name),
@@ -325,12 +363,63 @@ def analyse_pilot(pilot_folder: Path, article: str | None = None) -> PilotAnalys
         top_contributors=contributors[:5],
         effect_concentration=concentration,
         baseline_smd=baseline_smd,
+        paired=paired,
+        paired_sign_p=paired_sign_p,
+        pairs_used=pairs_used,
+        pairs_broken=pairs_broken,
         comparability=comparability,
         drifted_from=drifted_from,
         dropouts=dropouts,
     )
     analysis.warnings = _warnings(analysis)
     return analysis
+
+
+def _paired_analysis(
+    pairs: list, deltas: dict[str, float], group_of: dict[str, str]
+) -> tuple[EffectEstimate | None, float | None, int, int]:
+    """The paired comparison, when the split was made by matching.
+
+    Each pair contributes one number: the treated client's change minus
+    their partner's. Two tests are run on those numbers and both are
+    reported, because they fail in different directions. The t gives the
+    size of the effect in roubles with a confidence interval, and is the
+    one the business asks for; the sign test gives the significance and is
+    the one to believe on a short list, because it cannot be moved by a
+    single client with a thousand times the median turnover.
+
+    A pair whose partner dropped out is skipped, not half-counted: the
+    whole point of the pair is the comparison inside it.
+    """
+    if not pairs:
+        return None, None, 0, 0
+    differences: list[float] = []
+    broken = 0
+    for pair in pairs:
+        if len(pair) != 2:
+            continue
+        first, second = str(pair[0]), str(pair[1])
+        if first not in deltas or second not in deltas:
+            broken += 1
+            continue
+        roles = {group_of.get(first), group_of.get(second)}
+        if roles != {"cg", "tg"}:
+            # Both ended up in the same group, which means the pair was not
+            # the one this split actually used -- a rebase, or a hand-edited
+            # group file. Counting it would invent a comparison.
+            broken += 1
+            continue
+        treated = first if group_of.get(first) == "tg" else second
+        partner = second if treated == first else first
+        differences.append(deltas[treated] - deltas[partner])
+    if len(differences) < 2:
+        return None, None, 0, broken
+    return (
+        paired_effect(differences),
+        sign_test(differences).p_value,
+        len(differences),
+        broken,
+    )
 
 
 def _period_point(period, by_client, group_of) -> PeriodPoint:

@@ -418,7 +418,7 @@ def run_intake(
         )
     )
 
-    _write_pilot_meta(pilot_folder, request, method_plan)
+    _write_pilot_meta(pilot_folder, request, method_plan, split_result)
 
     # The reminder, in the two places it is actually looked for: a note in
     # the pilot folder for whoever opens the deliverables, and a row in the
@@ -559,7 +559,9 @@ def _register_rebase_reminder(
     )
 
 
-def _write_pilot_meta(pilot_folder: Path, request: PilotRequest, plan: MethodPlan) -> None:
+def _write_pilot_meta(
+    pilot_folder: Path, request: PilotRequest, plan: MethodPlan, split_result=None
+) -> None:
     """Persists what monitoring.py needs to run step 6 without the original
 
     PilotRequest object in hand (a recalculation run is typically kicked
@@ -591,6 +593,14 @@ def _write_pilot_meta(pilot_folder: Path, request: PilotRequest, plan: MethodPla
         "homogeneity_recheck_required": plan.homogeneity_recheck_required,
         "split_method_answers": decision.answers if decision else {},
         "split_method_override_reason": plan.override_reason,
+        # Matched pairs, when the list was short enough to pair. The
+        # analysis months later needs them: a paired sign test over these
+        # is the only test with real power on a short heavy-tailed list,
+        # and without the pairs here it cannot be run.
+        "assignment": getattr(split_result, "method", "rerandomisation"),
+        "pairs": [list(pair) for pair in getattr(split_result, "pairs", [])],
+        "unmatched": list(getattr(split_result, "unmatched", [])),
+        "pair_quality": getattr(split_result, "pair_quality", ""),
     }
     (pilot_folder / "pilot_meta.json").write_text(
         json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8"

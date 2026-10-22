@@ -226,16 +226,19 @@ def test_nothing_is_stratified_on_when_everything_is_too_fine():
 
 # --- the honest failure ----------------------------------------------------
 
-def test_an_unreachable_threshold_is_reported_with_what_to_do():
-    """At 200 clients over a dozen covariates no assignment reaches 0.1.
-    That is missing information, not a weak search."""
+def test_a_list_too_short_for_its_attributes_is_trimmed_and_says_so():
+    """Sixty clients cannot balance five seven-level attributes, and the
+    skill now does the arithmetic instead of handing it to the analyst: it
+    keeps what the list can carry, drops the rest by how little they
+    explain, and names them."""
     inns = [f"{7000000000 + i}" for i in range(60)]
     grouping = {f"attr{a}": {inn: f"v{(i + a) % 7}" for i, inn in enumerate(inns)}
                 for a in range(5)}
     financial = {"chod": {inn: float(i * i) for i, inn in enumerate(inns)}}
     result = split(inns, grouping, financial, SplitConfig(max_reshuffle_attempts=200))
-    if not result.balanced:
-        assert any("сокращайте набор признаков" in w for w in result.warnings)
+    assert result.dropped_metrics, "sixty clients cannot carry five attributes"
+    assert all(code in result.warnings[0] for code in result.dropped_metrics)
+    assert len(result.covariates) <= result.covariate_budget + 1
 
 
 def test_imbalance_score_on_an_empty_side():

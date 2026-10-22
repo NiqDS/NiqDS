@@ -67,6 +67,24 @@ def render_text(analysis: PilotAnalysis) -> str:
     lines.extend([
         f"  перестановочный тест: p = {_p(analysis.permutation_p)}",
         f"  накопленным итогом  : {_rub(analysis.cumulative_effect)} руб.",
+    ])
+    if analysis.paired is not None:
+        lines.extend([
+            "",
+            f"ПО ПАРАМ ({analysis.pairs_used} пар; список разбивался матчингом)",
+            f"  разница внутри пары : {analysis.paired.describe()}",
+            f"  знаковый тест       : p = {_p(analysis.paired_sign_p)}",
+        ])
+        if analysis.pairs_broken:
+            lines.append(
+                f"  распалось пар       : {analysis.pairs_broken} "
+                "(партнёр выбыл — пара из анализа исключена целиком)"
+            )
+        lines.append(
+            "  на коротком списке с тяжёлым хвостом верить следует знаковому "
+            "тесту: среднее здесь определяется одним-двумя крупными клиентами."
+        )
+    lines.extend([
         "",
         f"  ВЫВОД: {analysis.verdict}",
         "",

@@ -881,6 +881,75 @@ permutation set is *conservative* on a rerandomised design — so
 `skill/analysis.py` keeps using it, and `attempts_used` records how many
 draws the selection ran over.
 
+## Short lists: the covariate budget, and pairing
+
+`docs/small_lists_ru.md` is the full write-up; bench
+`docs/analysis/small_list_bench.py`. Both changes came out of the
+head-to-head above, where 200 clients balanced *worse* on money with
+attributes than without — thirty dummy columns competing for the same 200
+clients.
+
+**The covariate budget is derived, not guessed.** A standardised
+covariate's mean difference has sd `sqrt(1/n_C + 1/n_T)`, so one covariate
+lands inside the threshold with probability `p = 2Φ(τ/sd) − 1` and k of
+them with about `p^k`. A search of `draws` tries can expect to find such
+an assignment while `p^k ≥ 1/draws`, i.e. `k ≤ ln(draws)/ln(1/p)`. At the
+0.1 threshold and 1000 draws that is **5 columns at 50 clients, 10 at 200,
+57 at 1000, and no practical limit at 2000** — which is the real shape of
+the problem: balance is cheap on long lists and rationed on short ones.
+
+The ration is spent in tiers (`choose_covariates`): money first and never
+trimmed, then attributes already fixed by the strata (free — their columns
+start balanced), then everything else ranked by how much of the money it
+explains (η²). The third tier is handed out one column each before anyone
+gets two, because one column of ОКВЭД beats the fifth column of ОПФ.
+
+An attribute that does not fit is **coarsened, not dropped** — largest
+levels kept apart, tail merged. Dropping leaves the composition
+unprotected while the money criterion drags it around, which measures
+worse than a plain random split. Only what cannot fit in even one column
+is dropped, and then it is named in a warning.
+
+**Below 200 clients the list is paired before it is randomised.**
+Rerandomisation needs room: it can only pick among the draws it sees, and
+at 80 clients they all look alike. Matched-pair randomisation (Greevy et
+al. 2004) constructs a balanced assignment instead — pair the clients,
+then flip a coin inside each pair. Measured over 60 runs per size, the
+median money SMD:
+
+| N | rerandomisation | pairs |
+|---:|---:|---:|
+| 40 | 0.0534 | **0.0218** |
+| 80 | 0.0591 | **0.0132** |
+| 200 | 0.0533 | **0.0191** |
+
+Two findings worth carrying, both counter-intuitive:
+
+- **The paired t is no better than Welch** (23% vs 27% at N=80 on a 30%
+  effect). Both drown in the lognormal tail — one client at a thousand
+  times the median decides the mean, and pairing does not change that.
+- **The paired sign test is three times better** (88% vs 27%, with no
+  inflation of false positives). It only asks how often the treated client
+  beat their own partner, which the tail cannot move. *That* is the payoff
+  of pairing on a short list: not a better mean, but a test that works.
+  Both are reported — roubles with a CI from the paired t, significance
+  from the sign test.
+
+Greedy matching alone made things **worse** at N=200 (0.023 against 0.008
+with no pairing): it takes the easy pairs first, so the tail — where the
+money is — gets matched last to whatever is left. A swap pass over pairs
+of pairs, minimising the sum of *squared* gaps (the coin flips make each
+pair contribute ±(a−b), so the variance is the squared sum), fixes it.
+
+Pairs are kept whenever they clear the acceptance bar, even when a free
+search would shave a little more off the criterion — 0.004 SMD is not
+worth the sign test. They are skipped above `pairing_max_clients`, on an
+uneven allocation (90/10 cannot be built from pairs), and when the pairing
+fails the bar and the free search does not. A pair that loses a partner to
+dropout is excluded whole, so on a short list **one client leaving costs
+two observations** — if heavy attrition is expected, pairing is the wrong
+choice.
+
 ## The rebuild: window, rerandomisation, analytics
 
 Everything in `docs/BUILD_PLAN_ru.md` is now built. What changed, and why.

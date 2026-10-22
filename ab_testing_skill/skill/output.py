@@ -113,6 +113,9 @@ def _render_pilot(result: dict) -> str:
         ("Пилот", f"{request.get('pilot_name')} "
                   f"({request.get('valid_from')} .. {request.get('valid_to')})"),
         ("Метод разделения", result.get("split_method", "single")),
+        ("Назначение в группы",
+         f"матчинг в пары — {split.get('pair_quality')}" if split.get("pairs")
+         else "ререндомизация по стратам"),
         ("Контрольная группа (КГ)", f"{len(split.get('control') or [])} клиент(ов)"),
         ("Целевая группа (ЦГ)", f"{len(split.get('target') or [])} клиент(ов)"),
         ("Баланс по фин. статьям",
