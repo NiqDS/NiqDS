@@ -801,3 +801,142 @@ better search.
 This skill's own reshuffle loop (`max_reshuffle_attempts = 25`, keep the
 best by worst SMD) is already a crude rerandomisation; section 6 of the
 review describes the three changes that would make it a principled one.
+
+## The rebuild: window, rerandomisation, analytics
+
+Everything in `docs/BUILD_PLAN_ru.md` is now built. What changed, and why.
+
+### Groups are judged over a window, not on one day
+
+One month of ЧОД for an ММБ client swings by tens of percent, so a balance
+check on a single `as_of_date` was comparing noise. The metric contract now
+carries a monthly series:
+
+```python
+run(inn_list, as_of_date, spark=None, filters=None, months=None)
+# -> {инн: 1234.5}                        a flat answer, still supported
+# -> {инн: {"2026-01": 1234.5, ...}}      a window
+```
+
+`MetricRunner.run()` keeps the old scalar view as the window mean, so every
+existing caller is numerically unchanged; `run_series()` gives the full
+panel. `months` is passed only to scripts whose signature accepts it, the
+same way `filters` was introduced, so one bank can hold three generations
+of script. A flat answer is *marked* flat rather than repeated across the
+window — it carries no history, and inventing a trend from it would be
+worse than having none.
+
+`MetricSeries` also carries the distinction the skill was losing: a client
+absent from the mart has **no entry**, a client earning zero has `0.0`.
+Collapsing both to `None` made a data-supply problem look like a business
+one.
+
+### Continuous values can never be stratum keys
+
+`skill/features.py` prepares attributes before they reach a key: numerics
+are quantile-bucketed, ОКВЭД is reduced to its 21 ОКВЭД2 sections, tenure to
+three states, and the trajectory cohort of the leading article joins the
+strata. Cohorts are deliberately **not** the matching methodology's rule:
+that one classifies growth by `L / F` and so needs `F > 0 and L > 0`, which
+sends every loss-making client to "Нерегулярные" on arithmetic rather than
+behaviour. Classifying on the asinh trend removes the carve-out — steady
+losses are Стабильные, doubling losses are Снижающиеся.
+
+### The split is a real rerandomisation
+
+Morgan & Rubin, with the three changes the analysis called for: the
+criterion is the summed squared standardised mean difference across **every**
+covariate (money levels, trends, dummy-coded categorical levels), the draw
+count is 1000 under a work budget rather than 25, and the threshold is
+declared with failure reported.
+
+Two things were learned building it, both now in the code:
+
+- **A categorical level holding an odd number of clients cannot be split
+  evenly.** Five clients in fifty is 0.133 SMD at best — above the 0.1
+  convention before anything has gone wrong. Each column is judged against
+  the better of the threshold and its own achievable floor, so the guard
+  reports imbalance rather than indivisibility.
+- **Stratifying and rerandomising pull against each other.** 36 cells over
+  50 clients leaves no freedom in a draw, so a thousand of them improve
+  nothing. Attributes are taken into the strata coarsest-first and only
+  while cells hold at least `min_clients_per_stratum`; the rest are balanced
+  on as covariates. Nothing is dropped — the criterion sees everything
+  either way.
+
+### The pilot now says whether it can measure what it was asked to
+
+`expected_effect_pct` had been collected, validated and ignored since the
+first version. It is now compared against the minimum detectable effect,
+computed from the pre-period spread at the realised group sizes:
+
+```
+пилот из 25 клиентов в группе различит эффект примерно от 49% при мощности 80%; заявлено 5%
+```
+
+A warning by default — the skill cannot know that direction alone is not
+what the business wanted — and an error under `--require-power`.
+
+### Pilot analytics
+
+```bash
+python -m skill.cli report --pilot-folder data/pilots/<slug> --text
+```
+
+The pilot has been accumulating a panel all along: `financial_effect` is
+written in append mode, one block per `report_date`, each row carrying
+client, group and articles. `skill/analysis.py` is a read layer over that
+file — no new collection, no second query against the mart. It computes the
+difference-in-differences with a confidence interval, a permutation test
+beside the t-test, the share of clients up in each group, which clients
+carry the change, the baseline SMD, the comparability history and
+asymmetric dropout.
+
+Three renderings over one computation: a deterministic text overview (email,
+`--output text`, and what an agent relays), an Excel workbook with line
+charts, and a standalone HTML dashboard. All three are rebuilt by every
+`recalc`, so an open link always shows the latest state.
+
+**Two tests rather than one, deliberately.** The t-test on means is carried
+by the largest clients; the permutation test is not. When they disagree that
+is the answer to "who is this effect riding on", and the verdict line says
+so in words.
+
+Rehearsed end to end over six periods: **+60% injected reads back as +67.9%**
+(p=0.0016, permutation p=0.0006, 92% of the target group up against 52% of
+control), and an **A/A run with nothing injected reads +3.7%, p=0.75** — no
+false effect.
+
+### Operational
+
+Ported from the metrics-calculation fork, where they were already proven:
+one Spark session per run with `probe_session` testing liveness by running a
+job rather than trusting the object; per-metric staging so a failure on the
+last article does not discard the earlier queries; a timed run log with
+`index.jsonl` for comparing runs. All wired into `recalc`, where a late
+failure costs the most.
+
+`metric_scripts/subscriptions.py` gained candidate tables (the same mart is
+exposed under different schemas to different teams) and column-by-role
+lookup (the period column is `period_type` in one mart and `speriodtype` in
+its replacement).
+
+**Real mart names are not in this repository.** It is public and a schema
+name cannot be un-pushed. The committed file holds structure and
+`example_db` placeholders; real names go in `subscriptions.local.json`
+(gitignored) or behind `AB_SKILL_SUBSCRIPTIONS`, and a test asserts the
+committed file still has none.
+
+### One theme
+
+`skill/theme.py` is the single source of the palette — the dark teal
+identity from the team's `front.html`, extended to a light/dark pair because
+these pages get projected and printed. `web/build_form.py` generates
+`web/_theme.css` from it and the report inlines the same tokens, since a
+standalone file that gets emailed cannot rely on a relative link. The
+palette used to be copy-pasted into every page three or four times over; a
+test now fails if any page declares its own.
+
+Contrast is checked rather than eyeballed: the original `#2ee6a6` carries
+1.9:1 against white and is invisible as a button, so the light accent is
+`#0a7f5f` for 4.6:1.

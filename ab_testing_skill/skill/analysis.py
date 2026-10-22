@@ -206,6 +206,28 @@ class PilotAnalysis:
         }
 
 
+def _number(value: Any) -> float | None:
+    """A value from the history as a float, or None if it is not one.
+
+    The history is .xlsx when openpyxl is installed and .csv when it is
+    not, and a CSV hands back strings. Without this every value failed an
+    isinstance check and the whole analysis reported zeros -- a silent
+    wrong answer on the fallback path, which is exactly the path a
+    restricted environment uses.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return None if value != value else float(value)
+    text = str(value).strip().replace("\u00a0", "").replace(" ", "").replace(",", ".")
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
 def analyse_pilot(pilot_folder: Path, article: str | None = None) -> PilotAnalysis:
     """Reads the pilot's accumulated history and works out how it is going."""
     pilot_folder = Path(pilot_folder)
@@ -243,8 +265,9 @@ def analyse_pilot(pilot_folder: Path, article: str | None = None) -> PilotAnalys
         if period not in periods:
             periods.append(period)
         group_of[inn] = group
-        if isinstance(value, (int, float)):
-            by_client.setdefault(inn, {})[period] = float(value)
+        number = _number(value)
+        if number is not None:
+            by_client.setdefault(inn, {})[period] = number
     periods.sort()
 
     if len(periods) < 2:

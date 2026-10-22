@@ -4,31 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Аналитика пилотов — выбор инструмента</title>
+<link rel="stylesheet" href="_theme.css">
 <style>
-  :root {
-    color-scheme: light dark;
-    --bg: #f5f6f8;
-    --panel: #ffffff;
-    --text: #1c2126;
-    --muted: #5b6570;
-    --border: #d8dce1;
-    --accent: #1f6feb;
-    --accent-text: #ffffff;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #14161a; --panel: #1c1f24; --text: #e7e9ec; --muted: #9aa4af;
-      --border: #30353c; --accent: #4b8dfa; --accent-text: #0b0d10;
-    }
-  }
-  :root[data-theme="dark"] {
-    --bg: #14161a; --panel: #1c1f24; --text: #e7e9ec; --muted: #9aa4af;
-    --border: #30353c; --accent: #4b8dfa; --accent-text: #0b0d10;
-  }
-  :root[data-theme="light"] {
-    --bg: #f5f6f8; --panel: #ffffff; --text: #1c2126; --muted: #5b6570;
-    --border: #d8dce1; --accent: #1f6feb; --accent-text: #ffffff;
-  }
+  :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
@@ -72,12 +50,17 @@
       <span class="badge">Готово</span>
     </a>
 
+    <a class="card" href="#" onclick="return false;" title="Отчёт лежит в папке пилота: pilot_report.html">
+      <div class="title">Мониторинг эффекта пилота</div>
+      <div class="desc">Как идёт запущенный пилот: динамика КГ и ЦГ по месяцам, эффект с доверительным интервалом, кто внутри групп растёт, и с какого месяца группы перестали быть сопоставимыми. Обновляется на каждом пересчёте — <code>pilot_report.html</code> в папке пилота.</div>
+      <span class="badge">Готово</span>
+    </a>
+
     <a class="card" href="km_test.html">
       <div class="title">Тест-параметры КМ</div>
       <div class="desc">Исследования эффективности работы клиентских менеджеров, относительно заявленного плана.</div>
       <span class="badge">В разработке</span>
     </a>
-
     <a class="card" href="target_group_picker.html">
       <div class="title">Подбор Целевой группы для пилота</div>
       <div class="desc">Заполните требования для выбора целевой группы для проведения пилота из метрик на выбор и мы поможем вам ее подобрать.</div>
