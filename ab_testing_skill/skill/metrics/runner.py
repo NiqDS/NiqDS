@@ -8,6 +8,7 @@ imports the same way `metric_scripts/_common.py` does.
 from __future__ import annotations
 
 import importlib
+import os
 import inspect
 import json
 import sys
@@ -62,6 +63,48 @@ def get_spark_session():
     return SparkSession.builder.appName("ab-testing-skill").getOrCreate()
 
 
+class DemoDataInProductionError(RuntimeError):
+    """A metric that still returns bundled demo numbers was run for real.
+
+    Every script in `metric_scripts/` ships as a stub reading
+    `sample_data/attributes_reference.csv`. They are fine for a dry run and
+    they are how the test suite works -- but the pilot's strata and its
+    whole balance report are computed from whatever these return, so a
+    production run against an unported script produces a split over
+    fabricated attributes, a balance report over fabricated ЧОД, and an
+    email saying the check PASSED. Nothing downstream can tell the
+    difference, which makes a loud failure strictly better than a result.
+
+    This is the failure mode most likely to bite a partially-ported script
+    bank -- the realistic state, since the metrics get ported one at a
+    time: ЧОД comes back real while ОКВЭД is still demo, and the split
+    looks entirely plausible.
+
+    Porting a script means querying the real mart and deleting its
+    `DEMO_ONLY = True` marker. For a deliberate dry run with Spark
+    switched on, set AB_SKILL_ALLOW_DEMO_DATA=true.
+    """
+
+
+def refuse_demo_script_in_production(
+    metric_code: str, script_name: str, module, config: MetricScriptConfig
+) -> None:
+    if not config.use_spark:
+        return
+    if not getattr(module, "DEMO_ONLY", False):
+        return
+    if os.environ.get("AB_SKILL_ALLOW_DEMO_DATA", "false").strip().lower() == "true":
+        return
+    raise DemoDataInProductionError(
+        f"metric '{metric_code}' ({script_name}) is still the bundled demo stub: it reads "
+        "sample_data/attributes_reference.csv and ignores the SparkSession it is given. "
+        "Running it now would put fabricated values into this pilot's strata and balance "
+        "report, and the result would look valid. Port it to the real mart and delete its "
+        "`DEMO_ONLY = True` line, drop the metric from the request, or set "
+        "AB_SKILL_ALLOW_DEMO_DATA=true if you really do want demo numbers with Spark on."
+    )
+
+
 class MetricRunner:
     def __init__(self, config: MetricScriptConfig):
         self.config = config
@@ -104,6 +147,8 @@ class MetricRunner:
             spark = self._spark
         if not hasattr(module, "run"):
             raise AttributeError(f"metric script {definition.script} has no run() function")
+
+        refuse_demo_script_in_production(metric_code, definition.script, module, self.config)
 
         # The script contract is run(inn_list, as_of_date, spark=None, filters=None),
         # but `filters` was added later, so scripts predating it are still supported:

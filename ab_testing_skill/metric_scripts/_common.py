@@ -8,6 +8,7 @@ contract, filters included, without needing a cluster.
 from __future__ import annotations
 
 import csv
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
@@ -53,6 +54,31 @@ def _row_matches(row: dict[str, str], filters: dict[str, Any]) -> bool:
     return True
 
 
+class DemoDataRequestedInProductionError(RuntimeError):
+    """The bundled demo table was read while the skill is in production mode.
+
+    Second net behind skill/metrics/runner.py's DEMO_ONLY check, for a
+    script that reads this table without carrying the marker (a new stub,
+    or a half-ported script that still falls back here on some path). The
+    runner checks by module marker; this fires wherever the demo table is
+    actually touched, so neither can be bypassed by accident.
+    """
+
+
+def refuse_demo_reference_in_production() -> None:
+    if os.environ.get("AB_SKILL_USE_SPARK", "false").strip().lower() != "true":
+        return
+    if os.environ.get("AB_SKILL_ALLOW_DEMO_DATA", "false").strip().lower() == "true":
+        return
+    raise DemoDataRequestedInProductionError(
+        f"a metric script read the bundled demo table {REFERENCE_PATH.name} while "
+        "AB_SKILL_USE_SPARK=true. These numbers are fabricated: they would end up in "
+        "the pilot's strata and balance report, and the result would look valid. Port "
+        "the script to the real mart, or set AB_SKILL_ALLOW_DEMO_DATA=true for a "
+        "deliberate dry run."
+    )
+
+
 def lookup_column(
     inn_list: list[str],
     column: str,
@@ -65,6 +91,7 @@ def lookup_column(
     as None -- mirroring what a real query does when a client has no
     matching row.
     """
+    refuse_demo_reference_in_production()
     reference = _load_reference()
     result: dict[str, Any] = {}
     for inn in inn_list:

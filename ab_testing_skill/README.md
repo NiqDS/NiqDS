@@ -708,3 +708,61 @@ bucketed/cohort grouping attributes, stratification on pre-period trajectory,
 filling the `stat_significance` column with a t-test plus a sign test,
 directed swap balancing instead of random reshuffling, a dominant-client
 check, and the real table names and loaded-month detection.
+
+## Metric scripts are demo stubs until you port them — and they now say so
+
+Every script in `metric_scripts/` ships reading
+`sample_data/attributes_reference.csv`. That is deliberate: the skill runs
+end to end with no cluster, and the test suite depends on it. But the
+pilot's strata **and its entire balance report** are computed from whatever
+these return, so a production run against an unported script used to
+produce a split over fabricated attributes, a fabricated financial-effect
+workbook in the Navigator dropzone, and an email reading
+`Financial balance check: PASSED` — with nothing anywhere saying the
+numbers were invented.
+
+The dangerous case is a **partially ported** bank, which is the state any
+port is actually in: ЧОД comes back real while ОКВЭД is still demo, and the
+split looks entirely plausible.
+
+Two independent guards, both switched on by `AB_SKILL_USE_SPARK=true`:
+
+1. `DEMO_ONLY = True` in each bundled stub. `MetricRunner` refuses to call a
+   marked script in production (`DemoDataInProductionError`). **Porting a
+   script means querying the mart and deleting that line.**
+2. `refuse_demo_reference_in_production()` inside `lookup_column`, which
+   fires wherever the demo table is actually read — covering a new stub, or
+   a half-ported script that still falls back to it on some path.
+
+Both honour one escape hatch, `AB_SKILL_ALLOW_DEMO_DATA=true`, for a
+deliberate dry run with Spark on. A typo in either variable is read as "not
+production", so it fails toward the demo path working rather than toward
+production quietly accepting invented numbers. See
+`tests/test_demo_data_guard.py`.
+
+Borrowed from the metrics-calculation fork (`PepsiMonster/AB_split`), which
+reached the same conclusion first: *"тихие демо-числа в боевой выгрузке хуже
+падения: аналитик не отличит их от настоящих."*
+
+## Related: the AB_split metrics-calculation fork
+
+`docs/ab_split_calc_review_ru.md` reviews `PepsiMonster/AB_split`
+(branch `varvara-dev`) — **a fork of this skill** that the team developed
+into the metrics-calculation product, dropping the AB splitting entirely.
+It adds a one-session-per-run Spark scope with a live-session probe,
+per-metric staging so a late failure does not discard earlier mart queries,
+a timed run log, whole-month period arithmetic, and a `subscriptions.json`
+carrying the real mart names *with honest caveats* about which ones are
+unconfirmed or empty.
+
+Two consequences worth knowing:
+
+- **Do not push this tree over that repository's `main`.** It holds a
+  developed branch of the same code; a force push would discard the team's
+  work. Section 5 of the review lists what to merge module by module.
+- **The same thing is done three different ways** across the matching
+  notebook, that fork and this skill — most dangerously the INN key, where
+  the notebook and this skill zero-pad to 10/12 digits while the fork strips
+  leading zeros. That difference produces wrong numbers rather than an
+  error: a join silently misses a client, or matches the wrong one. Section
+  6 of the review tabulates all five divergences.
