@@ -423,16 +423,40 @@ The two remaining placeholders are static pages with no form yet — just
 enough for the hub's links to not 404. Come back to this section once
 either product's requirements are scoped.
 
-## Known limitation: over-stratification on small candidate lists
+## Over-stratification on small candidate lists
 
 Stratifying on 4 categorical dimensions (OKVED × OPF × TB × tenure bucket)
-needs enough candidates per combination for the 50/50 split to actually
-land near 50/50 — with a few hundred distinct strata and a candidate list
-in the low hundreds, many strata end up with 1–2 members each, which can
-skew the overall CG/TG ratio even though each stratum itself is correctly
-balanced. For small pilots, either select fewer grouping metrics in step 3
-or expect a real overall ratio (not the requested `target_ratio`) and rely
-on the balance report per stratum instead of the aggregate count.
+needs enough candidates per combination to split. On the bundled 50-client
+sample those four attributes produce 47 strata, 44 of them holding a single
+client — and **a stratum of one cannot be split**.
+
+This used to be far worse than "a skewed ratio". `n_target = round(1 * 0.5)`
+is 0 in Python (halves round to even), so every single-client stratum sent
+its client to control, deterministically: КГ=47 / ЦГ=3, reported as
+`balanced: PASSED` whenever a single financial article happened to clear the
+SMD check. Reshuffling could not help either — shuffling a one-element list
+is a no-op, so all 25 attempts returned the identical split. Picking a money
+metric as a grouping attribute (the form offers `chod`, `revenue`,
+`turnover`, `sdo`) made every rouble value its own stratum and emptied the
+target group entirely.
+
+Fixed in `skill/splitter.py`: the remainder of each stratum's exact share
+carries into the next (largest-remainder allocation) so a run of singletons
+alternates ЦГ/КГ, the stratum order is shuffled so the seed matters again, an
+empty group raises `DegenerateSplitError` instead of being returned, and
+`strata_warnings()` forces `balanced = False` with an explanation when more
+than half the list sits in singleton strata or the realised ЦГ share is more
+than `max_ratio_deviation` (5pp) from the requested one. The warning reaches
+the delivery email, the analytics package and `--output text`. See
+`tests/test_stratification.py` — 14 tests, including the 50-client
+reproduction.
+
+**It is still worth selecting coarse attributes.** A balanced split needs
+several clients per stratum; the guard tells you when you have not got them,
+it cannot manufacture them. `docs/chod_matching_review_ru.md` section 5 (P2)
+describes the proper fix — bucketing OKVED to its 21 ОКВЭД2 sections and
+money metrics to trajectory cohorts before they are ever used as a stratum
+key — which is how the ЧОД matching notebook avoids the problem entirely.
 
 ## External audit: what changed (wave 1)
 
@@ -660,3 +684,27 @@ aligned label column and the `СЛЕДУЮЩИЙ ШАГ` block were chosen for a
 agent relaying to a Russian-speaking requester. Paste a sample of real
 GigaCode CLI output into `skill/output.py`'s docstring and the renderers
 can be matched to it exactly.
+
+## Related: the ЧОД matching notebook
+
+`docs/chod_matching_review_ru.md` reviews the internal ЧОД matching notebook
+(`_chod_matching_features.ipynb` and its ~200-INN variant) and lists what
+each side should take from the other.
+
+Short version: that notebook is a **retrospective 1:1 matched DiD** study —
+the training already happened, and a control is *found* for each treated
+client in a 3.5M pool. This skill does **prospective stratified
+randomisation** — nothing has happened yet, and we *assign* control and
+target from one submitted list. Where treatment can still be assigned,
+randomisation is strictly stronger than matching, so the two are
+complementary rather than competing, and the notebook's design is a natural
+fifth product on `web/hub.html` ("the effect already happened — find a
+control group and measure it").
+
+What is queued from it, in priority order (section 5 of the review):
+minimum detectable effect checked at intake against the requested
+`expected_effect_pct` (which today is collected and then ignored),
+bucketed/cohort grouping attributes, stratification on pre-period trajectory,
+filling the `stat_significance` column with a t-test plus a sign test,
+directed swap balancing instead of random reshuffling, a dominant-client
+check, and the real table names and loaded-month detection.

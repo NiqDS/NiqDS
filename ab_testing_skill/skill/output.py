@@ -112,6 +112,9 @@ def _render_pilot(result: dict) -> str:
          + f" (попыток: {split.get('attempts_used')}, seed: {split.get('seed')})"),
     ]
 
+    for warning in split.get("warnings") or []:
+        out.append(("  ВНИМАНИЕ", warning))
+
     coverage = result.get("coverage") or {}
     total = len(split.get("control") or []) + len(split.get("target") or [])
     if coverage and total:

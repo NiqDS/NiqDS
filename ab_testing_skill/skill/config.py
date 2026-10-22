@@ -72,6 +72,11 @@ class SplitConfig:
     # difference of means.
     max_standardized_diff: float = 0.10
     max_reshuffle_attempts: int = 25
+    #: How far the realised ЦГ share may sit from `target_ratio` before the
+    #: split is reported as not balanced. Group means can line up while the
+    #: groups are wildly different sizes (a 47/3 split passed an SMD check
+    #: on one article), and the power of the test is set by the smaller group.
+    max_ratio_deviation: float = 0.05
 
 
 @dataclass

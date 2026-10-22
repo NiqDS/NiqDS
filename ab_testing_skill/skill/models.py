@@ -242,6 +242,10 @@ class SplitResult:
     balanced: bool
     # recorded so a split can be reproduced/audited after the fact
     seed: int | None = None
+    #: Reasons the group sizes should not be trusted even when the means
+    #: line up (over-fine strata, a realised ratio far from the requested
+    #: one). Non-empty forces `balanced` to False.
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass

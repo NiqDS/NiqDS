@@ -542,6 +542,9 @@ def _format_result_summary(request: PilotRequest, split_result, plan: MethodPlan
         "",
         "See attached control_group / target_group files (INN column renamed to 'codes').",
     ]
+    if getattr(split_result, "warnings", None):
+        lines.extend(["", "ВНИМАНИЕ по составу групп:"])
+        lines.extend(f"  - {w}" for w in split_result.warnings)
     if plan.rebase_required:
         lines.extend(["", *_rebase_reminder_lines(plan)])
     return "\n".join(lines)
@@ -611,6 +614,9 @@ def _format_pilot_package(
             f"Target group size: {len(split_result.target)}",
             f"Balance check (SMD <= {0.1}): {'PASSED' if split_result.balanced else 'NOT balanced'} "
             f"(attempts: {split_result.attempts_used}, seed: {split_result.seed})",
+            f"Strata: {len(split_result.strata_summary)} "
+            f"(singletons: {sum(1 for v in split_result.strata_summary.values() if v['total'] == 1)})",
+            *[f"  <-- {w}" for w in getattr(split_result, "warnings", [])],
             "",
             *method_lines,
             "",
