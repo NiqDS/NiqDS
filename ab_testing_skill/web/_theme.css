@@ -1,0 +1,55 @@
+/* Generated from skill/theme.py -- edit there, then run web/build_form.py.
+   Light by default, dark when the viewer's system asks for it; data-theme
+   on <html> overrides both, so a page can be pinned either way. */
+:root {
+  --bg: #f1f6f8;
+  --panel: #ffffff;
+  --text: #0b1f2a;
+  --muted: #55707c;
+  --border: #cbdde4;
+  --accent: #0a7f5f;
+  --accent-soft: #e3f5ee;
+  --accent-text: #ffffff;
+  --ok: #0a7f5f;
+  --ok-text: #0a6b50;
+  --ok-bg: #e3f5ee;
+  --danger: #b3261e;
+  --danger-bg: #fdecea;
+  --shadow: 0 1px 2px rgba(11,31,42,.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #031522;
+    --panel: #0a2337;
+    --text: #eaf4f7;
+    --muted: #a9c1cc;
+    --border: #1d4256;
+    --accent: #2ee6a6;
+    --accent-soft: #0d3b31;
+    --accent-text: #042016;
+    --ok: #2ee6a6;
+    --ok-text: #6fd88a;
+    --ok-bg: #10392a;
+    --danger: #ff6b64;
+    --danger-bg: #3a1f1e;
+    --shadow: 0 1px 2px rgba(0,0,0,.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #031522;
+  --panel: #0a2337;
+  --text: #eaf4f7;
+  --muted: #a9c1cc;
+  --border: #1d4256;
+  --accent: #2ee6a6;
+  --accent-soft: #0d3b31;
+  --accent-text: #042016;
+  --ok: #2ee6a6;
+  --ok-text: #6fd88a;
+  --ok-bg: #10392a;
+  --danger: #ff6b64;
+  --danger-bg: #3a1f1e;
+  --shadow: 0 1px 2px rgba(0,0,0,.35);
+}

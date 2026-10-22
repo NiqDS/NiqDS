@@ -80,6 +80,11 @@ def refuse_demo_reference_in_production() -> None:
     )
 
 
+#: Months are counted from this anchor so a client's series is the same
+#: number for a given calendar month however it is asked for.
+_EPOCH_MONTH = 2026 * 12 + 1
+
+
 def monthly_series(
     inn_list: list[str],
     column: str,
@@ -117,30 +122,40 @@ def monthly_series(
 
 
 def _expand_to_months(inn: str, column: str, base: float, months: list[str]) -> dict[str, float]:
+    """Value per month, anchored to the calendar rather than to the window.
+
+    The month is what determines the number, not its position in the list:
+    asking for 2026-09 on its own gives exactly what asking for
+    2026-04..2026-09 gives for that month. Anything else makes the demo
+    bank lie about trends -- an earlier version normalised the mean to the
+    reference value across whatever window was asked for, so a one-month
+    window (which is what each recalculation asks for) returned the same
+    constant every period and every pilot showed a flat line forever.
+    """
     if not months:
         return {}
     seed = zlib.crc32(f"{inn}:{column}".encode("utf-8"))
     profile = seed % 100
-    n = len(months)
 
-    if profile < 15:        # growing
-        shape = [(1.0 + 0.09 * i) for i in range(n)]
-    elif profile < 30:      # declining
-        shape = [(1.0 - 0.07 * i) for i in range(n)]
-    elif profile < 42:      # irregular: whole months with nothing
-        shape = [0.0 if (seed >> i) & 1 else 1.0 for i in range(n)]
-        if not any(shape):  # never leave it entirely empty
-            shape[-1] = 1.0
-    else:                   # flat, with month-to-month noise
-        shape = [1.0 + 0.12 * (((seed >> (i * 3)) % 7) - 3) / 3 for i in range(n)]
+    out: dict[str, float] = {}
+    for month in months:
+        year, _, mon = month.partition("-")
+        t = int(year) * 12 + int(mon) - _EPOCH_MONTH
 
-    # deterministic jitter, then rescale so the window mean is exactly `base`
-    shape = [max(s, 0.0) * (1.0 + 0.05 * (((seed >> (i * 5)) % 5) - 2) / 2) for i, s in enumerate(shape)]
-    total = sum(shape)
-    if total == 0:
-        return {month: 0.0 for month in months}
-    factor = base * n / total
-    return {month: round(shape[i] * factor, 2) for i, month in enumerate(months)}
+        if profile < 15:        # growing
+            factor = 1.0 + 0.025 * t
+        elif profile < 30:      # declining
+            factor = 1.0 - 0.02 * t
+        elif profile < 42:      # irregular: whole months with nothing
+            factor = 0.0 if (seed >> (abs(t) % 16)) & 1 else 1.3
+        else:                   # flat
+            factor = 1.0
+
+        factor = min(max(factor, 0.0), 6.0)
+        # deterministic month-to-month noise, stable for a given client+month
+        jitter = zlib.crc32(f"{inn}:{column}:{month}".encode("utf-8")) % 21 - 10
+        out[month] = round(base * factor * (1.0 + jitter / 100.0), 2)
+    return out
 
 
 def lookup_column(

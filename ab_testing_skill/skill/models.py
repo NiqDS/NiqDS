@@ -288,3 +288,7 @@ class PilotResult:
     #: the two group files are not the final membership.
     split_method: str = "single"
     rebase_required: bool = False
+    #: Minimum detectable effect at the realised group sizes, against the
+    #: effect the submitter said they expect. Empty when there was no
+    #: financial article to compute it from.
+    power: dict = field(default_factory=dict)

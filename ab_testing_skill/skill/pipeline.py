@@ -21,6 +21,7 @@ from .inn_utils import validate_file
 from .features import cohorts_for, stratum_values
 from .method_advisor import PERIOD_DAYS, describe, method_label
 from .period import months_before
+from .statistics import minimum_detectable_effect
 from .metrics.runner import MetricRunner
 from .models import OverlapFinding, PilotRequest, PilotResult, ValidationIssue
 from .registries import (
@@ -70,6 +71,17 @@ class PilotAlreadyExistsError(Exception):
             "INNs would block this one. Pass force=True (CLI: --force) to overwrite "
             "deliberately, or change the pilot name/dates."
         )
+
+
+class UnderpoweredPilotError(Exception):
+    """The pilot cannot resolve the effect it was asked to measure.
+
+    Raised only when `require_power` is set: by default this is a loud
+    warning rather than a refusal, because the skill cannot know that
+    direction alone is not what the business wanted. What it must not do is
+    stay quiet -- a fifty-client pilot chasing a 5% effect runs for a year
+    and ends with a confidence interval spanning zero.
+    """
 
 
 class NoEligibleClientsError(Exception):
@@ -161,6 +173,7 @@ def run_intake(
     dashboard_connector: DashboardConnector | None = None,
     strict_inn_checksum: bool = True,
     force: bool = False,
+    require_power: bool = False,
 ) -> PilotResult:
     config = config or default_config()
     default_email, default_dashboard = build_default_connectors(config)
@@ -325,6 +338,23 @@ def run_intake(
         financial_matrix=financial_matrix,
     )
 
+    # The question the form has been asking and the skill has been ignoring:
+    # can a pilot this size see the effect the submitter expects? Answered
+    # from the spread of the pre-period, before the pilot runs, rather than a
+    # year later from a confidence interval that spans zero.
+    power = _assess_power(request, financial_values, split_result)
+    if power is not None and power.underpowered:
+        message = (
+            f"мощность: {power.describe()}. Заявленный эффект меньше различимого — "
+            "пилот такого размера, скорее всего, даст доверительный интервал, "
+            "накрывающий ноль. Увеличьте список клиентов или рассчитывайте только "
+            "на направление эффекта, а не на его значимость."
+        )
+        split_result.warnings.append(message)
+        split_result.balanced = False
+        if require_power:
+            raise UnderpoweredPilotError(message)
+
     control_path = write_group_file(pilot_folder, "control_group", split_result.control)
     target_path = write_group_file(pilot_folder, "target_group", split_result.target)
 
@@ -407,7 +437,38 @@ def run_intake(
         coverage=coverage,
         split_method=method_plan.method,
         rebase_required=method_plan.rebase_required,
+        power=_power_dict(power),
     )
+
+
+def _assess_power(request: PilotRequest, financial_values, split_result):
+    """MDE on the leading financial article, at the realised group sizes."""
+    if not request.financial_effect_articles:
+        return None
+    article = request.financial_effect_articles[0]
+    values = [v for v in financial_values.get(article, {}).values()
+              if isinstance(v, (int, float))]
+    if len(values) < 4:
+        return None
+    n_per_group = min(len(split_result.control), len(split_result.target))
+    return minimum_detectable_effect(
+        values,
+        n_per_group=n_per_group,
+        requested_relative=float(request.expected_effect_pct) / 100.0,
+    )
+
+
+def _power_dict(power) -> dict:
+    if power is None:
+        return {}
+    return {
+        "n_per_group": power.n_per_group,
+        "detectable_relative": power.relative,
+        "detectable_absolute": power.absolute,
+        "requested_relative": power.requested,
+        "underpowered": power.underpowered,
+        "power": power.power,
+    }
 
 
 REBASE_NOTE_FILENAME = "REBASE_REQUIRED.md"

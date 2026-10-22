@@ -16,6 +16,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from .statistics import welch_test
+
 try:
     from openpyxl import Workbook, load_workbook
 
@@ -143,6 +145,31 @@ def write_group_file(pilot_folder: Path, group_name: str, inn_list: list[str]) -
     return _write_rows(pilot_folder / group_name, header=["codes"], rows=[[inn] for inn in inn_list])
 
 
+def _block_significance(
+    values: dict[str, dict[str, Any]],
+    group_of: dict[str, str],
+    articles: list[str],
+) -> float | None:
+    """Two-sided p-value for the CG/TG gap on the leading article.
+
+    None when either group has fewer than two clients with a value -- there
+    is nothing to test, and a number there would be read as one.
+    """
+    if not articles:
+        return None
+    per_inn = values[articles[0]]
+    control = [v for inn, v in per_inn.items()
+               if group_of.get(inn) == "cg" and isinstance(v, (int, float))]
+    target = [v for inn, v in per_inn.items()
+              if group_of.get(inn) == "tg" and isinstance(v, (int, float))]
+    if len(control) < 2 or len(target) < 2:
+        return None
+    estimate = welch_test(control, target)
+    if estimate.p_value != estimate.p_value:  # NaN
+        return None
+    return round(estimate.p_value, 6)
+
+
 def write_financial_effect_file(
     pilot_folder: Path,
     report_date: date,
@@ -155,22 +182,27 @@ def write_financial_effect_file(
     saved for upload to Navigator. See config.PilotStorageConfig.recalc_mode
     for the append-vs-overwrite assumption.
 
-    Always includes a `stat_significance` column (statistical significance
-    of the CG/TG difference on this pilot's effect). NEW, not in the
-    original spec, and not computed yet -- every row gets `None`/NULL as a
-    placeholder starting from the very first write; wire up the actual
-    test (once there's enough data across report_dates to run one) by
-    filling that column in here instead of hardcoding None.
+    The `stat_significance` column holds the two-sided p-value of the
+    CG/TG difference on the first article, for this `report_date`'s block.
+    It is a property of the block, not of a client, so the same value
+    repeats on every row of the block -- that is what lets a pivot or a
+    dashboard read it off any row without a second query.
+
+    A p-value is the right tool here and the wrong one for balance: asking
+    "is this period's gap distinguishable from zero" is a question about
+    evidence, whereas "are the groups comparable" is a question about size
+    and is judged by SMD. See skill/statistics.py.
     """
     stem = pilot_folder / "financial_effect"
     path = resolve_export_path(stem)
     articles = sorted(values.keys())
     header = ["report_date", "codes", "group"] + articles + ["stat_significance"]
     all_inns = sorted({inn for article_values in values.values() for inn in article_values})
+    significance = _block_significance(values, group_of, articles)
     new_rows = [
         [report_date.isoformat(), inn, group_of.get(inn, "unknown")]
         + [values[article].get(inn) for article in articles]
-        + [None]  # stat_significance placeholder -- see docstring
+        + [significance]
         for inn in all_inns
     ]
 

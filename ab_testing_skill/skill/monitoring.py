@@ -19,6 +19,7 @@ from pathlib import Path
 from .config import SkillConfig, default_config
 from .connectors.dashboard_connector import DashboardConnector, LocalDropzoneDashboardConnector
 from .exporter import read_codes_file, read_rows, write_financial_effect_file
+from .analysis import HOMOGENEITY_FILENAME, NoHistoryError
 from .metrics.runner import MetricRunner
 from .splitter import _balance_report
 
@@ -153,7 +154,17 @@ def run_recalculation(
     group_of.update({inn: "tg" for inn in target})
 
     runner = MetricRunner(config.metrics)
-    financial_values = runner.run_many(meta["financial_effect_articles"], all_inns, as_of_date)
+    # The month being reported on, named explicitly. Asking for the scalar
+    # view here measured "whatever the script returns for today" -- which for
+    # a mart query happens to be the right month, but for anything else is
+    # whatever it feels like, and in the bundled demo bank it was a constant.
+    # Every block then held identical numbers and the pilot showed a flat
+    # line forever. The period is part of the question, so it is asked.
+    period = f"{as_of_date.year:04d}-{as_of_date.month:02d}"
+    series = runner.run_many_series(
+        meta["financial_effect_articles"], all_inns, as_of_date, months=[period]
+    )
+    financial_values = {code: value.scalar() for code, value in series.items()}
 
     path = write_financial_effect_file(
         pilot_folder, as_of_date, financial_values, group_of, mode=config.storage.recalc_mode
@@ -173,11 +184,31 @@ def run_recalculation(
             max_standardized_diff=config.split.max_standardized_diff,
         )
 
+    # The report is rebuilt on every pass, so the link an analyst keeps open
+    # always shows the latest state. Needs two periods to say anything, so
+    # the first recalculation quietly produces nothing.
+    try:
+        build_reports(pilot_folder)
+    except NoHistoryError:
+        pass
+
     dashboard_connector.upload(meta["pilot_slug"], path)
     return path
 
 
-HOMOGENEITY_FILENAME = "homogeneity_checks.csv"
+def build_reports(pilot_folder: Path) -> dict[str, Path]:
+    """Analysis + all three renderings, written into the pilot folder."""
+    from .analysis import analyse_pilot
+    from .report import render_text, write_excel, write_html
+
+    analysis = analyse_pilot(pilot_folder)
+    text_path = Path(pilot_folder) / "pilot_report.txt"
+    text_path.write_text(render_text(analysis), encoding="utf-8")
+    return {
+        "text": text_path,
+        "excel": write_excel(analysis, pilot_folder),
+        "html": write_html(analysis, pilot_folder),
+    }
 
 
 def run_homogeneity_check(

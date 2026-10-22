@@ -8,6 +8,7 @@
     python -m skill.cli advise-method --answers a.json --request request.json --json
     python -m skill.cli advise-method --describe cascade_rebase
     python -m skill.cli rebase-due                       # pilots owing a rebase today
+    python -m skill.cli report --pilot-folder <папка> --text   # how the pilot is going
 
 `run` is what web/index.html's exported bundle is meant to be fed into;
 `recalc` is what a scheduler calls on the configured cadence (spec step 6).
@@ -36,6 +37,8 @@ from pathlib import Path
 from .calc_pipeline import CalculationRejected, NoMetricsSelectedError, run_calculation
 from .config import default_config
 from . import method_advisor, output
+from .analysis import NoHistoryError, analyse_pilot
+from .report import render_text, write_excel, write_html
 from .inn_utils import validate_file
 from .metrics.runner import MetricRunner
 from .models import CalculationRequest, PilotRequest
@@ -395,6 +398,38 @@ def _cmd_rebase_due(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_report(args: argparse.Namespace) -> int:
+    """Rebuild the pilot's analysis from the history it has accumulated."""
+    folder = Path(args.pilot_folder)
+    try:
+        analysis = analyse_pilot(folder, article=args.article)
+    except NoHistoryError as exc:
+        print(json.dumps({"status": "no_history", "detail": str(exc)},
+                         ensure_ascii=False, indent=2))
+        return 1
+    except Exception as exc:  # noqa: BLE001 - CLI contract is JSON on stdout
+        print(json.dumps({"status": "error", "error_type": type(exc).__name__,
+                          "detail": str(exc)}, ensure_ascii=False, indent=2))
+        return 1
+
+    if args.text:
+        print(render_text(analysis))
+        return 0
+
+    written = {"text": str(folder / "pilot_report.txt")}
+    (folder / "pilot_report.txt").write_text(render_text(analysis), encoding="utf-8")
+    if not args.no_files:
+        written["excel"] = str(write_excel(analysis, folder))
+        written["html"] = str(write_html(analysis, folder))
+    print(
+        json.dumps(
+            {"status": "ok", "analysis": analysis.to_dict(), "files": written},
+            default=_json_default, ensure_ascii=False, indent=2,
+        )
+    )
+    return 0
+
+
 def _cmd_filters(args: argparse.Namespace) -> int:
     config = default_config()
     runner = MetricRunner(config.metrics)
@@ -531,6 +566,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_due.add_argument("--as-of", help="YYYY-MM-DD, defaults to today")
     p_due.set_defaults(func=_cmd_rebase_due)
+
+    p_report = sub.add_parser(
+        "report",
+        help="Analyse how a running pilot is going, from its accumulated history",
+        parents=[common],
+    )
+    p_report.add_argument("--pilot-folder", required=True)
+    p_report.add_argument("--article", help="Which financial article to analyse (default: the first)")
+    p_report.add_argument("--text", action="store_true", help="Print the overview and write nothing")
+    p_report.add_argument("--no-files", action="store_true", help="Skip the Excel and HTML renderings")
+    p_report.set_defaults(func=_cmd_report)
 
     p_filters = sub.add_parser(
         "filters", help="List filters available from the script bank", parents=[common]

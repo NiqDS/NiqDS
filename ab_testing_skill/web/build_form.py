@@ -70,7 +70,27 @@ def load_questionnaire() -> dict:
     return {k: v for k, v in raw.items() if not k.startswith("_")}
 
 
+def write_theme() -> Path:
+    """Regenerate web/_theme.css from skill/theme.py, the single source.
+
+    The palette was copy-pasted into every page three times over (light
+    tokens, dark tokens, and again in the fork's own copy), which is how
+    two pages of the same product end up different colours.
+    """
+    import sys
+
+    sys.path.insert(0, str(ROOT))
+    from skill.theme import THEME_CSS
+
+    path = ROOT / "web" / "_theme.css"
+    path.write_text(THEME_CSS, encoding="utf-8")
+    return path
+
+
 def main() -> None:
+    theme_path = write_theme()
+    print(f"wrote {theme_path}")
+
     metrics = load_metrics()
     filters = load_filters()
     questionnaire = load_questionnaire()
