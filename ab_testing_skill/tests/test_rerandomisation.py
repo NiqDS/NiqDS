@@ -57,15 +57,116 @@ def test_a_constant_covariate_is_dropped():
     assert not any(n.startswith("same=") for n in names)
 
 
-def test_more_draws_never_make_the_balance_worse():
+def test_more_draws_never_make_the_split_worse():
+    """The draw sequence is a prefix of a longer one and the best is kept,
+    so the ranking key can only improve with budget.
+
+    Checked on `(search_excess, criterion)`, which is the key the search
+    actually orders by. `worst_smd` alone is *not* monotone and should not
+    be asserted to be: once every covariate is comfortably inside the bar,
+    the criterion is free to let the worst one drift from 0.004 to 0.011 in
+    exchange for gains across the rest -- which is the right trade, and the
+    reason the key has two elements.
+    """
     inns, grouping, financial = _population(200)
-    worst = []
+    keys = []
     for draws in (1, 50, 500):
         result = split(inns, grouping, financial,
                        SplitConfig(max_reshuffle_attempts=draws, random_seed=7))
-        worst.append(result.worst_smd)
-    assert worst[1] <= worst[0] + 1e-9
-    assert worst[2] <= worst[1] + 1e-9
+        keys.append((result.search_excess, result.criterion))
+    assert keys[1] <= (keys[0][0] + 1e-9, keys[0][1] + 1e-9)
+    assert keys[2] <= (keys[1][0] + 1e-9, keys[1][1] + 1e-9)
+
+
+def test_the_search_minimises_instead_of_stopping_at_the_threshold():
+    """It used to break out on the first draw under the bar -- which with
+    stratification is usually draw one, so 1000 draws and 1 draw returned
+    the identical split."""
+    inns, grouping, financial = _population(300)
+    one = split(inns, grouping, financial,
+                SplitConfig(max_reshuffle_attempts=1, random_seed=11))
+    many = split(inns, grouping, financial,
+                 SplitConfig(max_reshuffle_attempts=400, random_seed=11))
+    assert many.attempts_used > 1, "the budget has to actually be spent"
+    assert many.best_attempt > 1, "the kept draw is not the first one"
+    assert many.criterion < one.criterion
+
+
+def test_the_search_reports_where_the_kept_draw_sits():
+    inns, grouping, financial = _population(300)
+    result = split(inns, grouping, financial,
+                   SplitConfig(max_reshuffle_attempts=200, random_seed=3))
+    assert 1 <= result.best_attempt <= result.attempts_used
+    assert result.beaten_draws == result.attempts_used - 1, \
+        "every other draw was ranked, and none of them tied the winner"
+    assert result.criterion_name
+
+
+def test_an_acceptable_split_is_never_dropped_for_a_better_criterion():
+    """Ranking by the criterion alone returned a draw past the bar when a
+    passing one had been seen -- measured, 0.133 at 25 draws became 0.171 at
+    200. The key is lexicographic for exactly this reason."""
+    inns = [f"{7000000000 + i}" for i in range(200)]
+    grouping = {f"attr{a}": {inn: f"v{(i + a) % 5}" for i, inn in enumerate(inns)}
+                for a in range(3)}
+    financial = {"chod": {inn: float((i * 991) % 7919) for i, inn in enumerate(inns)}}
+    excess = []
+    for draws in (10, 50, 250):
+        result = split(inns, grouping, financial,
+                       SplitConfig(max_reshuffle_attempts=draws, random_seed=5))
+        excess.append(result.search_excess)
+    assert excess == sorted(excess, reverse=True), excess
+
+
+# --- the criterion itself --------------------------------------------------
+
+def test_the_criterion_is_mahalanobis_when_the_design_can_be_inverted():
+    inns, grouping, financial = _population(200)
+    result = split(inns, grouping, financial, SplitConfig(max_reshuffle_attempts=20))
+    assert result.criterion_name == "Махаланобис"
+
+
+def test_a_wide_design_on_a_long_list_falls_back_to_the_sum_of_squares():
+    """The precision matrix costs covariates^2 x clients once; past the
+    work budget it is not worth it and the identity metric serves."""
+    inns, grouping, financial = _population(400)
+    result = split(inns, grouping, financial,
+                   SplitConfig(max_reshuffle_attempts=5, max_search_cells=100))
+    assert result.criterion_name == "сумма квадратов SMD"
+
+
+def test_mahalanobis_counts_a_duplicated_covariate_once():
+    """The point of the inverse covariance, in one measurement.
+
+    A money level and its own trend move together; four ОКВЭД dummies of
+    the same attribute are correlated by construction. A sum of squares
+    charges the same underlying imbalance once per correlated column, so the
+    search spends its budget on whichever attribute happens to be widest.
+    """
+    from skill.splitter import precision_matrix
+
+    same = [1.0, -1.0] * 50                       # one direction, four times
+    other = [1.0, 1.0, -1.0, -1.0] * 25           # orthogonal to it
+    matrix = [same[:], same[:], same[:], same[:], other]
+    precision = precision_matrix(matrix)
+    assert precision is not None, "a ridge has to rescue the singular design"
+
+    def mahalanobis(diffs):
+        return sum(
+            diffs[a] * sum(row[b] * diffs[b] for b in range(len(diffs)))
+            for a, row in enumerate(precision)
+        )
+
+    delta = 0.1
+    on_the_duplicated = [delta] * 4 + [0.0]
+    on_the_lone_one = [0.0] * 4 + [delta]
+
+    # sum of squares: the duplicated direction looks four times as bad
+    assert sum(d * d for d in on_the_duplicated) == pytest.approx(
+        4 * sum(d * d for d in on_the_lone_one))
+    # Mahalanobis: the same imbalance, counted once
+    assert mahalanobis(on_the_duplicated) == pytest.approx(
+        mahalanobis(on_the_lone_one), rel=1e-6)
 
 
 # --- the achievable floor --------------------------------------------------

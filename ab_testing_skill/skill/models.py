@@ -267,6 +267,58 @@ class SplitResult:
     #: Worst standardised mean difference across those covariates for the
     #: chosen draw. None when there was nothing to balance against.
     worst_smd: float | None = None
+    #: Which draw was kept (1-based), out of `attempts_used`. The search
+    #: minimises rather than accepting the first draw over the bar, so this
+    #: is rarely 1 and the gap to `attempts_used` shows how long the budget
+    #: kept finding improvements.
+    best_attempt: int = 0
+    #: Value of the minimised criterion for the kept draw, and which
+    #: criterion that was -- a Mahalanobis distance where the design's
+    #: covariance could be inverted, a sum of squared SMDs otherwise.
+    criterion: float | None = None
+    criterion_name: str = ""
+    #: How far the kept draw's worst covariate sits past its own allowance
+    #: (threshold or achievable floor); 0 when the draw is acceptable. The
+    #: search ranks draws by `(search_excess, criterion)`, so both are
+    #: non-increasing as the draw budget grows -- `worst_smd` on its own is
+    #: not, because once every covariate is comfortably inside the bar the
+    #: criterion is free to trade one of them for gains elsewhere.
+    search_excess: float = 0.0
+
+    def search_summary(self) -> str:
+        return describe_search(
+            self.attempts_used, self.best_attempt, self.beaten_draws,
+            self.criterion, self.criterion_name,
+        )
+    #: How many of the other draws scored strictly worse. `beaten_draws /
+    #: (attempts_used - 1)` is where the kept split sits in the distribution
+    #: of what plain stratified randomisation would have produced.
+    beaten_draws: int = 0
+
+
+def describe_search(
+    attempts_used: int,
+    best_attempt: int,
+    beaten_draws: int,
+    criterion: float | None,
+    criterion_name: str,
+) -> str:
+    """One line on what the rerandomisation actually did.
+
+    "attempts: 805" says nothing about whether they were worth making.
+    Where the kept draw sits against the others does: a split that beat 99%
+    of plain stratified draws is a different object from one that was
+    simply the first thing drawn. Takes loose values rather than the result
+    object because the renderers work off the serialised dict.
+    """
+    if not attempts_used or attempts_used <= 1 or criterion is None:
+        return f"розыгрышей: {attempts_used}"
+    share = beaten_draws / (attempts_used - 1)
+    standing = "лучше всех остальных" if share >= 1.0 else f"лучше {share:.0%} остальных"
+    return (
+        f"розыгрышей: {attempts_used}, выбран №{best_attempt} "
+        f"(критерий {criterion_name} = {criterion:.3f}; {standing})"
+    )
 
 
 @dataclass

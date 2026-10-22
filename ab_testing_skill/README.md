@@ -263,11 +263,13 @@ clarification round:
   attribute (step 3) and later as a financial-effect article during
   monitoring (step 5/6) — matching the confirmed intent that a single
   script bank serves both purposes.
-- **CG/TG split method**: stratified random 50/50 within each combination
-  of the chosen grouping metrics, then a balance check on the chosen
-  financial metrics' means (`SplitConfig.max_relative_imbalance`, default
-  10%); reshuffles within strata up to `max_reshuffle_attempts` times if
-  unbalanced.
+- **CG/TG split method**: stratified random assignment within each
+  combination of the grouping metrics the strata budget can afford, then
+  rerandomisation — up to `max_reshuffle_attempts` draws, each scored by a
+  Mahalanobis distance between the group means over money levels, trends
+  and dummy-coded attribute levels, keeping the best. A covariate is
+  reported as unbalanced when it exceeds `max_standardized_diff` (0.1) or
+  its own achievable floor, whichever is larger.
 - **INN validation**: the spec only requires "digits only". Added the
   official FNS control-digit checksum (10-digit legal entities, 12-digit
   individuals) as an extra layer — toggle off via `strict_inn_checksum=False`
@@ -843,11 +845,41 @@ into `skill/allocation.py` (30 tests in `tests/test_allocation.py`):
   pilot or move its start date and the membership changes — measured at 29%
   of clients. Do not touch those fields on a running pilot.
 
-The bench also exposed something about our own loop: it **stops at the
+The bench's most useful finding was about our own loop: it **stopped at the
 threshold instead of minimising**. At the default 0.1 the first draw already
-passes, so 1 draw and 1000 draws give an identical split. That is correct
-behaviour, not a bug, but it means raising `max_reshuffle_attempts` buys
-nothing unless `max_standardized_diff` comes down with it.
+passes, so 1 draw and 1000 draws returned an identical split — the
+rerandomisation was there on paper and doing nothing. Three changes fixed
+it, and the numbers above are all post-fix (before it, our worst case ate
+25%/39%/68% of MDE instead of 21%/16%/6%):
+
+1. **The threshold is an acceptance bar, not a search target.** The loop
+   spends its draw budget and keeps the minimum. It stops early only once
+   the bar is met and `search_patience` (250) consecutive draws have failed
+   to improve — a cost control, since improvements that late are rare and
+   tiny.
+2. **The criterion is a real Mahalanobis distance** (inverse covariance of
+   the design) rather than a sum of squared SMDs. A sum counts one
+   underlying imbalance once per correlated column — a money level and its
+   own trend, the dummies of one attribute — so the search drifted towards
+   whichever attribute had the most levels. `tests/test_rerandomisation.py`
+   measures this: four copies of one direction cost 4× under the sum and 1×
+   under Mahalanobis.
+3. **Draws are ranked lexicographically**, `(excess over the per-covariate
+   allowance, criterion)`. Minimising the criterion alone returned a draw
+   that *failed* the bar when a passing one had already been seen —
+   measured, 0.133 at 25 draws became 0.171 at 200. Note the consequence:
+   `worst_smd` alone is **not** monotone in the draw budget, and should not
+   be read as if it were. Once every covariate sits deep inside the bar the
+   criterion will happily trade 0.002 on one of them for gains across the
+   other thirty. The ranking key is what is monotone.
+
+One statistical consequence worth stating, because it reaches the analysis
+and not just the split: best-of-N selection is no longer simple
+randomisation, so a permutation test over the final groups is not exact.
+It errs safe — Morgan & Rubin show the Fisher test over the full
+permutation set is *conservative* on a rerandomised design — so
+`skill/analysis.py` keeps using it, and `attempts_used` records how many
+draws the selection ran over.
 
 ## The rebuild: window, rerandomisation, analytics
 

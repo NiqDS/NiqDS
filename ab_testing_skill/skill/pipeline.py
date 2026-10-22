@@ -633,7 +633,7 @@ def _format_result_summary(request: PilotRequest, split_result, plan: MethodPlan
         f"Control group: {len(split_result.control)} clients",
         f"Target group: {len(split_result.target)} clients",
         f"Financial balance check: {'PASSED' if split_result.balanced else 'NOT balanced within tolerance'} "
-        f"(after {split_result.attempts_used} attempt(s))",
+        f"({split_result.search_summary()})",
         "",
         "See attached control_group / target_group files (INN column renamed to 'codes').",
     ]
@@ -708,7 +708,7 @@ def _format_pilot_package(
             f"Control group size: {len(split_result.control)}",
             f"Target group size: {len(split_result.target)}",
             f"Balance check (SMD <= {0.1}): {'PASSED' if split_result.balanced else 'NOT balanced'} "
-            f"(attempts: {split_result.attempts_used}, seed: {split_result.seed})",
+            f"({split_result.search_summary()}, seed: {split_result.seed})",
             f"Strata: {len(split_result.strata_summary)} "
             f"(singletons: {sum(1 for v in split_result.strata_summary.values() if v['total'] == 1)})",
             *[f"  <-- {w}" for w in getattr(split_result, "warnings", [])],

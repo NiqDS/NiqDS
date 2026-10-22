@@ -76,17 +76,25 @@ class SplitConfig:
     #: pilots over the same client list do not. An explicit value overrides
     #: both -- needed when a running pilot has to be re-split deliberately.
     random_seed: int | None = 42
-    # After the stratified split, each financial metric's standardized mean
-    # difference (SMD) between CG and TG must be <= this, or the splitter
-    # reshuffles within strata and retries. 0.1 is the conventional balance
-    # threshold. See splitter._balance_report for why SMD and not a relative
-    # difference of means.
+    #: The bar a covariate has to clear for the split to be *reported* as
+    #: balanced -- 0.1 is the conventional SMD threshold. It is an acceptance
+    #: bar, not a search target: the loop keeps minimising past it rather
+    #: than stopping at the first draw that clears it. See
+    #: splitter._balance_report for why SMD and not a relative difference of
+    #: means, and splitter.split for why minimising beats accepting.
     max_standardized_diff: float = 0.10
     #: Rerandomisation draws. Each one is a stratified assignment scored on
     #: the standardised design matrix; the best is kept. Twenty-five (the
     #: old value) left most of the available balance on the table for an
     #: operation that costs microseconds.
     max_reshuffle_attempts: int = 1000
+    #: Stop early after this many consecutive draws that fail to improve the
+    #: criterion -- but only once the acceptance bar is already met, so the
+    #: search never gives up while the split is still unacceptable. 0 means
+    #: "always spend the whole budget". This is a cost control, not a quality
+    #: setting: improvements after a few hundred barren draws are rare and
+    #: tiny, while the draws themselves are not free on a long list.
+    search_patience: int = 250
     #: Work budget for the search, in column-elements. The cost of a draw is
     #: covariates x clients, so a large list would otherwise make 1000 draws
     #: slow; the effective number of draws is cut to fit this and reported.

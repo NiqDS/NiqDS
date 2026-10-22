@@ -4,12 +4,27 @@ Target (ЦГ) groups.
 
 Per the clarified requirements: stratify on the chosen grouping metrics
 (OKVED / OPF / TB / tenure bucket, or whichever subset the user picked in
-step 3), split roughly 50/50 *within each stratum* so both groups have the
-same composition, then check that the two groups are balanced on the
-financial metrics via the standardized mean difference (SMD), which must
-stay within `SplitConfig.max_standardized_diff`. If it doesn't, reshuffle
-within strata (new random assignment, same strata) and retry up to
-`max_reshuffle_attempts` times, keeping the least-imbalanced attempt.
+step 3) and split *within each stratum* so both groups have the same
+composition. Everything the strata could not match exactly -- the money
+levels, their trends, the attributes too fine to stratify on -- is then
+balanced by rerandomisation: draw an assignment, score the distance
+between the group means, keep the best of `max_reshuffle_attempts` draws.
+
+The pieces, each with its own reasoning at the definition:
+
+* `choose_strata_keys` -- which attributes get exact strata and which are
+  left to the criterion, because stratifying past one client per cell
+  removes the freedom the search needs.
+* `_assign` -- largest-remainder allocation inside each stratum, because
+  rounding per stratum sends every singleton to the same group.
+* `design_matrix` -- money, trends and dummy-coded levels as one
+  standardised matrix, so a single threshold covers all of them.
+* `precision_matrix` / `_draw_score` -- a Mahalanobis criterion, ranked
+  lexicographically behind the per-covariate acceptance bar.
+* `_column_floor` -- what a column could achieve at best, so an
+  indivisible level is not reported as imbalance.
+* `plan_allocation` (allocation.py) -- the CG/TG proportion, when it is
+  chosen from the power of the list rather than fixed.
 """
 from __future__ import annotations
 
@@ -158,13 +173,6 @@ def _balance_report(
             "balanced": 1.0 if smd <= max_standardized_diff else 0.0,
         }
     return report
-
-
-def _worst_smd(report: dict[str, dict[str, float]]) -> float:
-    """Largest SMD across metrics -- the score a candidate split is ranked by."""
-    if not report:
-        return float("inf")
-    return max(r["smd"] for r in report.values())
 
 
 class DegenerateSplitError(Exception):
@@ -401,27 +409,143 @@ def _as_float(value: Any) -> float:
     return 0.0
 
 
+def _correlation(matrix: list[list[float]]) -> list[list[float]]:
+    """Covariance of the design columns, which are already standardised.
+
+    Mean 0 and sd 1 per column means the covariance matrix *is* the
+    correlation matrix, so no centring is needed here.
+    """
+    k = len(matrix)
+    n = len(matrix[0])
+    cov = [[0.0] * k for _ in range(k)]
+    for a in range(k):
+        for b in range(a, k):
+            value = sum(matrix[a][i] * matrix[b][i] for i in range(n)) / n
+            cov[a][b] = value
+            cov[b][a] = value
+    return cov
+
+
+def _invert(square: list[list[float]]) -> list[list[float]] | None:
+    """Gauss-Jordan with partial pivoting. None when singular."""
+    k = len(square)
+    work = [row[:] + [1.0 if i == j else 0.0 for j in range(k)] for i, row in enumerate(square)]
+    for col in range(k):
+        pivot = max(range(col, k), key=lambda r: abs(work[r][col]))
+        if abs(work[pivot][col]) < 1e-12:
+            return None
+        work[col], work[pivot] = work[pivot], work[col]
+        scale = work[col][col]
+        work[col] = [v / scale for v in work[col]]
+        for row in range(k):
+            if row != col and work[row][col] != 0.0:
+                factor = work[row][col]
+                work[row] = [v - factor * w for v, w in zip(work[row], work[col])]
+    return [row[k:] for row in work]
+
+
+def precision_matrix(matrix: list[list[float]]) -> list[list[float]] | None:
+    """Inverse covariance of the design, for a true Mahalanobis criterion.
+
+    Summing squared standardised differences treats the covariates as
+    independent, and ours are plainly not: a money level and its own trend
+    move together, and dummy columns of one attribute are negatively
+    correlated by construction. The sum therefore counts one underlying
+    imbalance several times and spends the search budget on whichever
+    attribute happens to have the most levels.
+
+    The inverse covariance fixes that -- it is the metric Morgan & Rubin
+    rerandomise on, and it weights each direction by how much independent
+    information it carries. Perfectly collinear columns make the matrix
+    singular, so a ridge is added to the diagonal until it inverts; the
+    ridge only matters for directions the data cannot distinguish anyway.
+    Returns None if even a heavy ridge fails, and the caller falls back to
+    the sum of squares (which is this criterion with an identity metric).
+    """
+    if not matrix or not matrix[0]:
+        return None
+    cov = _correlation(matrix)
+    for ridge in (0.0, 1e-8, 1e-6, 1e-4, 1e-2, 1e-1):
+        trial = [
+            [value + (ridge if i == j else 0.0) for j, value in enumerate(row)]
+            for i, row in enumerate(cov)
+        ]
+        inverse = _invert(trial)
+        if inverse is not None and all(inverse[i][i] > 0 for i in range(len(inverse))):
+            return inverse
+    return None
+
+
+def _draw_score(
+    matrix: list[list[float]],
+    control_idx: list[int],
+    target_idx: list[int],
+    precision: list[list[float]] | None,
+    allowed: list[float] | None,
+) -> tuple[float, float, float]:
+    """(excess over the acceptance bar, criterion, worst difference).
+
+    Three numbers because the search needs two keys, not one. Ranking draws
+    by the criterion alone can return a draw that *fails* the per-covariate
+    bar when a passing draw was already seen: the criterion is a sum over
+    all directions, so it happily trades one covariate past the bar for
+    small gains everywhere else. Measured at N=200, that turned a 0.133
+    worst SMD at 25 draws into 0.171 at 200 -- more search, worse verdict.
+
+    So draws are ordered lexicographically by `(excess, criterion)`:
+    anything meeting the bar beats anything that does not, and among those
+    that meet it the criterion decides. `excess` is measured against each
+    column's own allowance -- the threshold or the column's achievable
+    floor, whichever is larger -- so it is exactly the rule the final report
+    applies, and the two can no longer disagree.
+    """
+    if not matrix or not control_idx or not target_idx:
+        return float("inf"), float("inf"), float("inf")
+    diffs: list[float] = []
+    worst = 0.0
+    excess = 0.0
+    for index, column in enumerate(matrix):
+        c_mean = sum(column[i] for i in control_idx) / len(control_idx)
+        t_mean = sum(column[i] for i in target_idx) / len(target_idx)
+        diff = t_mean - c_mean
+        diffs.append(diff)
+        worst = max(worst, abs(diff))
+        if allowed is not None:
+            excess = max(excess, abs(diff) - allowed[index])
+    if precision is None:
+        criterion = sum(d * d for d in diffs)
+    else:
+        n_control, n_target = len(control_idx), len(target_idx)
+        scale = n_control * n_target / (n_control + n_target)
+        criterion = scale * sum(
+            diffs[a] * sum(row[b] * diffs[b] for b in range(len(diffs)))
+            for a, row in enumerate(precision)
+        )
+    return max(0.0, excess), criterion, worst
+
+
 def imbalance_score(
-    matrix: list[list[float]], control_idx: list[int], target_idx: list[int]
+    matrix: list[list[float]],
+    control_idx: list[int],
+    target_idx: list[int],
+    precision: list[list[float]] | None = None,
 ) -> tuple[float, float]:
-    """(sum of squared standardised mean differences, worst single one).
+    """(criterion to minimise, worst single standardised difference).
 
     The first number is what the search minimises -- it moves on every
     covariate at once, so improving the money cannot quietly cost the
-    composition. The second is what gets reported, because "the worst
-    covariate is within 0.1" is the sentence an analyst can act on.
+    composition. With `precision` it is the Mahalanobis distance between the
+    group means,
+
+        M = (n_T * n_C / N) * d' * S^-1 * d,
+
+    which is the Morgan & Rubin criterion; without it, the sum of squared
+    differences, which is the same thing with an identity metric. The second
+    number is what gets reported, because "the worst covariate is within
+    0.1" is the sentence an analyst can act on.
     """
-    if not matrix or not control_idx or not target_idx:
-        return float("inf"), float("inf")
-    total = 0.0
-    worst = 0.0
-    for column in matrix:
-        c_mean = sum(column[i] for i in control_idx) / len(control_idx)
-        t_mean = sum(column[i] for i in target_idx) / len(target_idx)
-        diff = abs(c_mean - t_mean)
-        total += diff * diff
-        worst = max(worst, diff)
-    return total, worst
+    _, criterion, worst = _draw_score(matrix, control_idx, target_idx, precision, None)
+    return criterion, worst
 
 
 def column_diffs(
@@ -447,19 +571,38 @@ def split(
     """Stratified assignment, then rerandomisation to pick the best draw.
 
     The loop was always a crude rerandomisation (Morgan & Rubin 2012): draw
-    an assignment, score it, keep the best. Three things make it a
-    principled one.
+    an assignment, score it, keep the best. Four things make it a principled
+    one.
 
     *The criterion covers every covariate.* It used to be the worst SMD
     across the financial articles only, so the search was blind to the
-    composition of the groups and to the trend. It is now the summed
-    squared standardised mean difference across money levels, trends and
-    one-hot categorical levels -- the Mahalanobis distance between group
-    means on a standardised design.
+    composition of the groups and to the trend. It is now a Mahalanobis
+    distance between the group means over money levels, trends and dummy
+    categorical levels, on a standardised design -- see `precision_matrix`
+    for why the inverse covariance and not a plain sum of squares.
 
     *The number of draws is large.* Twenty-five draws of a cheap operation
     was leaving most of the available balance on the table; a thousand costs
     milliseconds.
+
+    *The search minimises; it does not stop at the threshold.* It used to
+    break out on the first draw whose worst covariate came in under
+    `max_standardized_diff`, and with stratification that is usually draw
+    one -- so a thousand draws and a single draw returned the identical
+    split, measured. The threshold is an *acceptance* bar for the report,
+    not a target for the search: below it, balance keeps buying precision
+    in the final comparison, and a draw costs microseconds. The loop now
+    spends its budget and keeps the minimum, stopping early only when the
+    bar is already met and `search_patience` consecutive draws have failed
+    to improve on it.
+
+    One consequence worth stating, because it affects the analysis and not
+    just the split: selecting the best of many draws is no longer simple
+    randomisation, so a permutation test over the final groups is not exact.
+    It errs on the safe side -- Morgan & Rubin show the Fisher test over the
+    full permutation set is *conservative* on a rerandomised design -- so
+    `skill/analysis.py` can keep using it, and `attempts_used` records how
+    many draws the selection ran over.
 
     *The threshold is declared, and failure is reported.* Returning the best
     of N without saying whether it met the bar is how a split nobody could
@@ -496,10 +639,23 @@ def split(
     balance_report: dict[str, dict[str, float]] = {}
     attempt = 0
     seed_used = base_seed
+    best_key: tuple[float, float] | None = None
     best_score: float | None = None
     best_worst = float("inf")
+    best_attempt = 0
+    best_accepted = False
+    ties = 0                       # draws that scored exactly the kept draw's key
+    allowed: list[float] | None = None
 
     draws = _effective_draws(config, len(inn_list), len(matrix))
+    # Building the precision matrix costs covariates^2 x clients once. On a
+    # wide design over a long list that outweighs the search itself, and the
+    # sum of squares is a serviceable fallback, so it is bought only inside
+    # the same budget the draws are bought from.
+    precision = None
+    if matrix and len(matrix) ** 2 * len(inn_list) <= config.max_search_cells:
+        precision = precision_matrix(matrix)
+
     while attempt < draws:
         seed = base_seed + attempt
         candidate_control, candidate_target = _assign(strata, target_ratio, seed=seed)
@@ -509,16 +665,42 @@ def split(
             control, target, seed_used = candidate_control, candidate_target, seed
             break
 
-        score, worst = imbalance_score(
+        if allowed is None:
+            # Each column's own allowance, which the group sizes fix and the
+            # draw does not: the threshold, or the column's achievable floor
+            # where that is larger. Computed once off the first draw.
+            allowed = [
+                max(
+                    config.max_standardized_diff,
+                    _column_floor(raw, len(candidate_control), len(candidate_target)),
+                )
+                for raw in raw_columns
+            ]
+
+        excess, score, worst = _draw_score(
             matrix,
             [position[inn] for inn in candidate_control],
             [position[inn] for inn in candidate_target],
+            precision,
+            allowed,
         )
-        if best_score is None or score < best_score:
-            best_score, best_worst = score, worst
+        key = (excess, score)
+        if best_key is None or key < best_key:
+            # Whatever was best before is strictly worse than this, so the
+            # count of beaten draws stays derivable from the tie count alone.
+            best_key, best_score, best_worst, best_attempt = key, score, worst, attempt
+            best_accepted = excess <= 1e-9
             control, target, seed_used = candidate_control, candidate_target, seed
+        elif key == best_key:
+            ties += 1
 
-        if worst <= config.max_standardized_diff:
+        # Early stop only once the split is already acceptable: while it is
+        # not, there is nothing to be patient about -- keep looking.
+        if (
+            config.search_patience
+            and best_accepted
+            and attempt - best_attempt >= config.search_patience
+        ):
             break
 
     if control and target and financial_values:
@@ -593,26 +775,12 @@ def split(
         allocation=allocation.describe() if allocation else "",
         covariates=covariates,
         worst_smd=None if best_worst == float("inf") else best_worst,
+        best_attempt=best_attempt,
+        criterion=best_score if best_score not in (None, float("inf")) else None,
+        criterion_name="Махаланобис" if precision is not None else "сумма квадратов SMD",
+        beaten_draws=max(0, attempt - 1 - ties),
+        search_excess=best_key[0] if best_key else 0.0,
     )
-
-
-def _worst_covariate(
-    matrix: list[list[float]],
-    names: list[str],
-    position: dict[str, int],
-    control: list[str],
-    target: list[str],
-) -> str:
-    control_idx = [position[inn] for inn in control]
-    target_idx = [position[inn] for inn in target]
-    worst_name, worst_value = "?", -1.0
-    for column, name in zip(matrix, names):
-        c_mean = sum(column[i] for i in control_idx) / len(control_idx)
-        t_mean = sum(column[i] for i in target_idx) / len(target_idx)
-        diff = abs(c_mean - t_mean)
-        if diff > worst_value:
-            worst_name, worst_value = name, diff
-    return worst_name
 
 
 def _concentration_warning(financial_values: dict[str, dict[str, Any]]) -> str | None:

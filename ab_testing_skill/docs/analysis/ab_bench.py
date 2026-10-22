@@ -190,7 +190,7 @@ def determinism():
         t, c_, result = run_ours(inns, financial, grouping, draws=draws)
         elapsed = time.time() - started
         print(f"  наш: {draws:>5} розыгрышей -> перекос {worst_skew(financial, t, c_):.4f}, "
-              f"{elapsed:.2f} с")
+              f"выбран №{result.best_attempt} из {result.attempts_used}, {elapsed:.2f} с")
     started = time.time()
     run_theirs(inns, "ladder", 0.2, "pilot")
     print(f"  их:  одно разбиение           -> {time.time() - started:.4f} с")
@@ -230,10 +230,10 @@ def mode_c(sizes, repeats):
 
 
 def threshold_behaviour():
-    """Почему число розыгрышей перестаёт влиять: цикл выходит по достижении порога."""
+    """Порог — планка приёмки, а не цель поиска: цикл минимизирует и дальше."""
     print()
     print("=" * 94)
-    print("ПОВЕДЕНИЕ ПОИСКА: наш цикл останавливается на пороге, а не минимизирует")
+    print("ПОВЕДЕНИЕ ПОИСКА: порог — планка приёмки, цикл минимизирует за неё")
     print("=" * 94)
     inns, financial, grouping = population(2000, seed=7)
     for threshold in (0.10, 0.02, 0.005, 0.001):
@@ -245,8 +245,11 @@ def threshold_behaviour():
         print(f"  порог {threshold:<6} -> розыгрышей {result.attempts_used:>5}, "
               f"worst_smd {result.worst_smd:.5f}, перекос по ЧОД "
               f"{worst_skew(financial, result.target, result.control):.5f}")
-    print("\n  Отсюда и одинаковый результат при 1 и 1000 розыгрышах в прошлой таблице:")
-    print("  порог 0.1 достигается на первом же розыгрыше, искать дальше незачем.")
+    print("\n  Раньше цикл выходил на первом розыгрыше, прошедшем порог, — и при")
+    print("  стратификации это обычно первый же розыгрыш, поэтому 1 и 1000 давали")
+    print("  один и тот же сплит. Теперь бюджет тратится целиком, а порог решает")
+    print("  только, принят ли результат; при более жёстком пороге ранжирование")
+    print("  сначала уводит худшую ковариату под планку и лишь затем минимизирует.")
 
 
 if __name__ == "__main__":

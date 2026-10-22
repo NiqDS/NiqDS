@@ -23,6 +23,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .models import describe_search
+
 #: Keys whose value is a path the user may want to open. Rendered last and
 #: never truncated, since the whole point of the text output is to point at
 #: files instead of inlining their contents.
@@ -98,6 +100,13 @@ def _render_ok(payload: dict) -> str:
 def _render_pilot(result: dict) -> str:
     request = result.get("request") or {}
     split = result.get("split") or {}
+    search = describe_search(
+        split.get("attempts_used") or 0,
+        split.get("best_attempt") or 0,
+        split.get("beaten_draws") or 0,
+        split.get("criterion"),
+        split.get("criterion_name") or "",
+    )
     out = [
         f"{_OK}: КГ и ЦГ сформированы",
         "",
@@ -109,7 +118,7 @@ def _render_pilot(result: dict) -> str:
         ("Баланс по фин. статьям",
          ("в пределах порога SMD <= 0.1" if split.get("balanced") else
           "НЕ СОШЁЛСЯ в пределах порога SMD <= 0.1 -- см. balance_report")
-         + f" (попыток: {split.get('attempts_used')}, seed: {split.get('seed')})"),
+         + f" ({search}, seed: {split.get('seed')})"),
     ]
 
     for warning in split.get("warnings") or []:
